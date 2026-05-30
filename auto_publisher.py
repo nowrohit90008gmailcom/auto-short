@@ -68,16 +68,17 @@ def calculate_schedule_timestamps(run_type: str, run_date: datetime.datetime):
         
     return schedules
 
-def start_daemon():
+def start_daemon(instant_run: bool = False):
     log.info("Starting Strict Scheduled Auto-Publisher Daemon (IST Timezone)...")
+    
+    # If instant_run is True, we pretend we are in a valid window for the first loop
+    first_loop = True
     
     while True:
         try:
             # 1. Wait for the exact time window (12 AM or 12 PM)
             sleep_sec, run_type, next_run_dt = get_seconds_until_next_run()
             
-            # If we just started the bot, and we missed the window by a few minutes, 
-            # we shouldn't wait 12 hours. We allow a 30-minute grace period.
             now_ist = datetime.datetime.now(IST)
             noon_today = now_ist.replace(hour=12, minute=0, second=0, microsecond=0)
             midnight_today = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -96,6 +97,15 @@ def start_daemon():
                 active_run_type = "MIDNIGHT"
                 active_run_dt = midnight_today
                 log.info("Within 30-min grace period of MIDNIGHT run. Starting immediately!")
+                
+            if instant_run and first_loop:
+                log.info("INSTANT RUN TRIGGERED! Bypassing sleep timer...")
+                is_grace_period = True
+                # Pick the closest run type for scheduling purposes
+                active_run_type = "NOON" if (now_ist.hour >= 6 and now_ist.hour < 18) else "MIDNIGHT"
+                # Keep active_run_dt as next_run_dt so the scheduled times are in the future
+                active_run_dt = now_ist
+                first_loop = False
                 
             if not is_grace_period:
                 log.info(f"Sleeping for {sleep_sec} seconds until next {run_type} run at {next_run_dt.strftime('%Y-%m-%d %H:%M:%S')} IST...")
@@ -171,4 +181,9 @@ def start_daemon():
             time.sleep(300)
 
 if __name__ == "__main__":
-    start_daemon()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--instant", action="store_true", help="Force an instant run bypassing the schedule")
+    args = parser.parse_args()
+    
+    start_daemon(instant_run=args.instant)

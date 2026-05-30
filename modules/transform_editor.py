@@ -99,8 +99,8 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, broll_
     
     try:
         # 3. Execute FFmpeg
-        # We increase the timeout to 1800 (30 minutes) because rendering a 2-minute 1080p split-screen with burned captions takes a while.
-        subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=1800)
+        # We increase the timeout to 7200 (2 hours) because rendering a 2-minute 1080p split-screen with burned captions takes a while on standard VPS hardware.
+        subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=7200)
         log.info(f"Successfully generated transformative short -> {output_path}")
         return True
     except subprocess.CalledProcessError as e:

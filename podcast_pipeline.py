@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 from pathlib import Path
 from utils.logger import get_logger
 
@@ -27,7 +28,7 @@ def _ensure_gameplay_video():
         log.info("Downloading base gameplay video for split-screen...")
         # A generic 10-minute non-copyrighted parkour/gameplay video
         url = "https://www.youtube.com/watch?v=n_Dv4JMiwK8" 
-        cmd = ["python", "-m", "yt_dlp", "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4", "-o", str(GAMEPLAY_FILE), url]
+        cmd = [sys.executable, "-m", "yt_dlp", "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4", "-o", str(GAMEPLAY_FILE), url]
         subprocess.run(cmd, check=True)
 
 def run_podcast_pipeline(url: str, title: str):

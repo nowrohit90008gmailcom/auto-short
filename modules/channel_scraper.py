@@ -2,6 +2,7 @@ import os
 import json
 import random
 import subprocess
+import sys
 from pathlib import Path
 from utils.logger import get_logger
 
@@ -37,7 +38,7 @@ def get_random_unprocessed_video(channel_url: str) -> dict:
     log.info(f"Scraping channel for videos: {channel_url}")
     
     cmd = [
-        "python", "-m", "yt_dlp",
+        sys.executable, "-m", "yt_dlp",
         "--flat-playlist",
         "--dump-json",
         channel_url

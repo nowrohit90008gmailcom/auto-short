@@ -1,0 +1,10 @@
+.env
+workspace/credentials/
+workspace/cache/
+workspace/movies/
+workspace/podcast_shorts/
+__pycache__/
+logs/
+*.mp4
+*.mp3
+*.ass

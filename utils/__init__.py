@@ -1,0 +1,1 @@
+"""Auto Shorts — Utility package."""

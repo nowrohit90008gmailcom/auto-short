@@ -1,0 +1,1 @@
+"""Auto Shorts — Module package."""

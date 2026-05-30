@@ -59,24 +59,24 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, broll_
     # Filter Complex Building
     filters = []
     
-    # Scale podcast to fit top half (1080x1344, which is 70% of 1920)
-    filters.append(f"[0:v]scale=1080:1344:force_original_aspect_ratio=decrease,pad=1080:1344:(ow-iw)/2:(oh-ih)/2[top]")
+    # Scale podcast to fit top half (720x896, which is 70% of 1280)
+    filters.append(f"[0:v]scale=720:896:force_original_aspect_ratio=decrease,pad=720:896:(ow-iw)/2:(oh-ih)/2[top]")
     
-    # Scale gameplay to fill bottom half (1080x576, which is 30% of 1920)
-    filters.append(f"[{gp_idx}:v]scale=1080:576:force_original_aspect_ratio=increase,crop=1080:576[bottom]")
+    # Scale gameplay to fill bottom half (720x384, which is 30% of 1280)
+    filters.append(f"[{gp_idx}:v]scale=720:384:force_original_aspect_ratio=increase,crop=720:384[bottom]")
     
-    # vstack top and bottom
+    # Stack them (Total: 720x1280)
     filters.append("[top][bottom]vstack=inputs=2[stacked]")
     
     current_out = "[stacked]"
     
-    # Inject B-roll over the top half from 2s to 5s
+    # Overlay B-roll if exists
     if has_broll:
-        filters.append(f"[{broll_idx}:v]scale=1080:1344:force_original_aspect_ratio=increase,crop=1080:1344[broll_scaled]")
-        # overlay from t=2 to t=5 on top of [stacked] at x=0, y=0
+        # Scale B-roll to cover top half (720x896)
+        filters.append(f"[{broll_idx}:v]scale=720:896:force_original_aspect_ratio=increase,crop=720:896[broll_scaled]")
         filters.append(f"{current_out}[broll_scaled]overlay=x=0:y=0:enable='between(t,2,5)'[with_broll]")
         current_out = "[with_broll]"
-    
+        
     # Burn captions
     if captions_ass and os.path.exists(captions_ass):
         ass_rel = os.path.relpath(captions_ass, os.getcwd()).replace("\\", "/")
@@ -88,9 +88,9 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, broll_
     cmd.extend(["-map", "[final]"])
     cmd.extend(["-map", "0:a?"]) # Map audio from podcast
     
-    # Output settings
+    # Output settings: 720p 30fps
     cmd.extend([
-        "-c:v", "libx264", "-preset", "fast",
+        "-c:v", "libx264", "-preset", "fast", "-r", "30",
         "-c:a", "aac", "-b:a", "192k",
         output_path
     ])

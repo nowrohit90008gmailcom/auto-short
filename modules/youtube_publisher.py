@@ -17,11 +17,12 @@ log = get_logger("youtube_publisher")
 SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
 CREDENTIALS_DIR = Path("workspace") / "credentials"
 
-def upload_to_youtube_shorts(video_path: str, title: str, description: str, privacy_status: str = "public") -> bool:
+def upload_to_youtube_shorts(video_path: str, title: str, description: str, privacy_status: str = "public", publish_at: str = None) -> bool:
     """
     Uploads a short to YouTube using OAuth2.
     Requires client_secrets.json in workspace/credentials.
     Generates token.json upon first authentication.
+    If publish_at (ISO 8601 string) is provided, privacyStatus is forced to private and it is scheduled.
     """
     if not HAS_GOOGLE_API:
         log.error("google-api-python-client is not installed. Run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2")
@@ -75,16 +76,25 @@ def upload_to_youtube_shorts(video_path: str, title: str, description: str, priv
         # Must include #shorts in description or title to ensure it goes to the Shorts shelf
         full_desc = f"{description}\n\n#shorts #podcast"
         
+        if publish_at:
+            privacy_status = "private"
+            log.info(f"Scheduling YouTube Short for: {publish_at}")
+        
+        status_obj = {
+            'privacyStatus': privacy_status,
+            'selfDeclaredMadeForKids': False,
+        }
+        
+        if publish_at:
+            status_obj['publishAt'] = publish_at
+            
         body = {
             'snippet': {
                 'title': title[:100],
                 'description': full_desc,
                 'categoryId': '24', # Entertainment
             },
-            'status': {
-                'privacyStatus': privacy_status,
-                'selfDeclaredMadeForKids': False,
-            }
+            'status': status_obj
         }
         
         media = MediaFileUpload(video_path, chunksize=-1, resumable=True)

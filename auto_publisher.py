@@ -1,7 +1,8 @@
 import os
 import time
 import random
-import argparse
+import datetime
+import pytz
 from pathlib import Path
 from utils.logger import get_logger
 from podcast_pipeline import run_podcast_pipeline
@@ -10,6 +11,7 @@ from modules.facebook_publisher import upload_to_facebook_reels
 from modules.youtube_publisher import upload_to_youtube_shorts
 
 log = get_logger("auto_publisher")
+IST = pytz.timezone('Asia/Kolkata')
 
 def get_random_channel() -> str:
     channels_file = Path("workspace/channels.txt")
@@ -19,31 +21,107 @@ def get_random_channel() -> str:
         channels = [line.strip() for line in f if line.strip()]
     return random.choice(channels) if channels else None
 
-def start_daemon(interval_hours: int = 12):
-    log.info("Starting Auto-Publisher Daemon for multiple channels...")
-    log.info(f"Upload interval: Every {interval_hours} hours")
+def get_seconds_until_next_run() -> int:
+    """Calculates seconds until the next 12:00 AM or 12:00 PM IST."""
+    now_ist = datetime.datetime.now(IST)
+    
+    # Target 1: Today at Noon (12:00:00)
+    target_noon = now_ist.replace(hour=12, minute=0, second=0, microsecond=0)
+    
+    # Target 2: Tomorrow at Midnight (00:00:00)
+    target_midnight = now_ist.replace(hour=0, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
+    
+    if now_ist < target_noon:
+        next_run = target_noon
+        run_type = "NOON"
+    else:
+        next_run = target_midnight
+        run_type = "MIDNIGHT"
+        
+    delta = (next_run - now_ist).total_seconds()
+    return int(delta), run_type, next_run
+
+def calculate_schedule_timestamps(run_type: str, run_date: datetime.datetime):
+    """
+    Returns a list of 3 tuples (unix_timestamp, iso8601_string) for Facebook and YouTube.
+    MIDNIGHT RUN -> 5 AM, 6 AM, 7 AM IST today.
+    NOON RUN -> 5 PM, 6 PM, 7 PM IST today.
+    """
+    schedules = []
+    
+    if run_type == "MIDNIGHT":
+        hours = [5, 6, 7] # 5 AM, 6 AM, 7 AM
+    else:
+        hours = [17, 18, 19] # 5 PM, 6 PM, 7 PM
+        
+    for h in hours:
+        # Create datetime in IST
+        target_dt = run_date.replace(hour=h, minute=0, second=0, microsecond=0)
+        
+        # Convert to Unix timestamp for Facebook
+        unix_ts = int(target_dt.timestamp())
+        
+        # Convert to ISO 8601 UTC for YouTube
+        iso_str = target_dt.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        
+        schedules.append((unix_ts, iso_str))
+        
+    return schedules
+
+def start_daemon():
+    log.info("Starting Strict Scheduled Auto-Publisher Daemon (IST Timezone)...")
     
     while True:
         try:
-            # 1. Pick a random channel
+            # 1. Wait for the exact time window (12 AM or 12 PM)
+            sleep_sec, run_type, next_run_dt = get_seconds_until_next_run()
+            
+            # If we just started the bot, and we missed the window by a few minutes, 
+            # we shouldn't wait 12 hours. We allow a 30-minute grace period.
+            now_ist = datetime.datetime.now(IST)
+            noon_today = now_ist.replace(hour=12, minute=0, second=0, microsecond=0)
+            midnight_today = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            is_grace_period = False
+            active_run_type = run_type
+            active_run_dt = next_run_dt
+            
+            if 0 <= (now_ist - noon_today).total_seconds() < 1800:
+                is_grace_period = True
+                active_run_type = "NOON"
+                active_run_dt = noon_today
+                log.info("Within 30-min grace period of NOON run. Starting immediately!")
+            elif 0 <= (now_ist - midnight_today).total_seconds() < 1800:
+                is_grace_period = True
+                active_run_type = "MIDNIGHT"
+                active_run_dt = midnight_today
+                log.info("Within 30-min grace period of MIDNIGHT run. Starting immediately!")
+                
+            if not is_grace_period:
+                log.info(f"Sleeping for {sleep_sec} seconds until next {run_type} run at {next_run_dt.strftime('%Y-%m-%d %H:%M:%S')} IST...")
+                time.sleep(sleep_sec)
+                # After sleeping, we wake up exactly at the target time
+                active_run_type = run_type
+                active_run_dt = next_run_dt
+            
+            log.info(f"=== WAKING UP FOR {active_run_type} RUN ===")
+            
+            # 2. Pick a random channel
             channel_url = get_random_channel()
             if not channel_url:
                 log.error("No channels found in workspace/channels.txt!")
-                return
+                continue
                 
             log.info(f"Targeting Channel: {channel_url}")
-            
-            # 2. Get Random Video
             video = get_random_unprocessed_video(channel_url)
             
             if not video:
-                log.warning(f"No unprocessed videos found in {channel_url}. Sleeping for 1 hour before trying another channel...")
-                time.sleep(3600)
+                log.warning(f"No unprocessed videos found in {channel_url}.")
                 continue
                 
             log.info(f"Picked video: {video['title']} ({video['url']})")
             
-            # 3. Run Transformative Pipeline
+            # 3. Run Transformative Pipeline (Generates 3 shorts)
             generated_shorts = run_podcast_pipeline(video["url"], video["title"])
             
             if not generated_shorts:
@@ -51,45 +129,46 @@ def start_daemon(interval_hours: int = 12):
                 mark_as_processed(video["id"])
                 continue
                 
-            # 4. Publish Shorts
-            for short in generated_shorts:
-                log.info(f"Publishing: {short['title']}")
+            # Calculate Schedule Timestamps
+            schedules = calculate_schedule_timestamps(active_run_type, active_run_dt)
+            
+            # 4. Publish/Schedule Shorts
+            for idx, short in enumerate(generated_shorts):
+                if idx >= 3:
+                    break # Safety limit, only schedule up to 3
+                    
+                fb_unix, yt_iso = schedules[idx]
+                log.info(f"Scheduling Short {idx+1}: {short['title']}")
                 
-                # Facebook
+                # Facebook (Scheduled)
                 fb_success = upload_to_facebook_reels(
                     video_path=short["video_path"],
                     title=short["title"],
-                    description=short["description"]
+                    description=short["description"],
+                    schedule_time=fb_unix
                 )
                 
-                # YouTube (Disabled per user request)
-                # yt_success = upload_to_youtube_shorts(
-                #     video_path=short["video_path"],
-                #     title=short["title"],
-                #     description=short["description"]
-                # )
+                # YouTube (Scheduled)
+                yt_success = upload_to_youtube_shorts(
+                    video_path=short["video_path"],
+                    title=short["title"],
+                    description=short["description"],
+                    publish_at=yt_iso
+                )
                 
-                if fb_success:
-                    log.info(f"Successfully published {short['title']} to Facebook!")
+                if fb_success and yt_success:
+                    log.info(f"Successfully scheduled {short['title']} to Facebook and YouTube!")
                 else:
-                    log.error(f"Failed to publish {short['title']}.")
+                    log.error(f"Failed to fully schedule {short['title']}.")
                     
             # 5. Mark as processed
             mark_as_processed(video["id"])
-            
-            # 6. Sleep
-            sleep_seconds = interval_hours * 3600
-            log.info(f"Cycle complete. Sleeping for {interval_hours} hours...")
-            time.sleep(sleep_seconds)
+            log.info(f"=== {active_run_type} RUN COMPLETE ===")
             
         except Exception as e:
             log.error(f"Daemon encountered a fatal error: {e}")
-            log.info("Sleeping for 1 hour before retrying...")
-            time.sleep(3600)
+            log.info("Sleeping for 5 minutes before retrying...")
+            time.sleep(300)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Autonomous Podcast Shorts Publisher")
-    parser.add_argument("--interval", type=int, default=12, help="Hours to wait between processing videos")
-    args = parser.parse_args()
-    
-    start_daemon(args.interval)
+    start_daemon()

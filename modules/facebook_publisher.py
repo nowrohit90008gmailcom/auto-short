@@ -4,10 +4,10 @@ from utils.logger import get_logger
 
 log = get_logger("facebook_publisher")
 
-def upload_to_facebook_reels(video_path: str, title: str, description: str) -> bool:
+def upload_to_facebook_reels(video_path: str, title: str, description: str, schedule_time: int = None) -> bool:
     """
     Uploads a local MP4 file to Facebook Reels using the 3-step Graph API process.
-    Requires FB_PAGE_ID and FB_PAGE_TOKEN in the environment.
+    If schedule_time (unix timestamp) is provided, it schedules the video.
     """
     page_id = os.getenv("FB_PAGE_ID")
     access_token = os.getenv("FB_PAGE_TOKEN")
@@ -62,20 +62,27 @@ def upload_to_facebook_reels(video_path: str, title: str, description: str) -> b
         return False
         
     # STEP 3: Publish
-    log.info("Publishing Reel to Facebook Page...")
+    log.info("Publishing/Scheduling Reel to Facebook Page...")
     full_description = f"{title}\n\n{description}"
+    
     publish_payload = {
         'access_token': access_token,
         'video_id': video_id,
         'upload_phase': 'finish',
-        'video_state': 'PUBLISHED',
         'description': full_description
     }
+    
+    if schedule_time:
+        publish_payload['video_state'] = 'SCHEDULED'
+        publish_payload['scheduled_publish_time'] = schedule_time
+        log.info(f"Scheduling Facebook Reel for timestamp: {schedule_time}")
+    else:
+        publish_payload['video_state'] = 'PUBLISHED'
     
     try:
         pub_res = requests.post(init_url, data=publish_payload, timeout=60)
         pub_res.raise_for_status()
-        log.info(f"SUCCESS: Reel published to Facebook! Video ID: {video_id}")
+        log.info(f"SUCCESS: Reel processed on Facebook! Video ID: {video_id}")
         return True
     except Exception as e:
         log.error(f"Facebook Publish Step failed: {e}")

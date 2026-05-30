@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-Shorts Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.7);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --accent-glow: rgba(139, 92, 246, 0.5);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --status-active: #10b981;
+            --status-idle: #f59e0b;
+            --status-error: #ef4444;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: radial-gradient(circle at top right, #1e1b4b, var(--bg-color));
+        }
+
+        .container {
+            width: 90%;
+            max-width: 600px;
+            margin-top: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            margin: 0;
+            background: linear-gradient(to right, #a855f7, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .card h3 {
+            margin: 0;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .card .value {
+            margin-top: 0.5rem;
+            font-size: 1.5rem;
+            font-weight: 800;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-Active { background-color: var(--status-active); box-shadow: 0 0 10px var(--status-active); }
+        .status-Sleeping { background-color: var(--status-idle); box-shadow: 0 0 10px var(--status-idle); }
+        .status-Offline { background-color: var(--status-error); box-shadow: 0 0 10px var(--status-error); }
+
+        .terminal-container {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1rem;
+            position: relative;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .terminal-title {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .terminal-content {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.8rem;
+            color: #10b981;
+            line-height: 1.5;
+            height: 350px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            padding-right: 0.5rem;
+        }
+
+        /* Custom Scrollbar for Terminal */
+        .terminal-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        .terminal-content::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+        .terminal-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .loader {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--text-muted);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: auto;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .pulse {
+            animation: pulse-animation 2s infinite;
+        }
+        
+        @keyframes pulse-animation {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Auto-Shorts</h1>
+            <p class="subtitle">Autonomous AI Publisher Dashboard</p>
+        </header>
+
+        <div class="stats-grid">
+            <div class="card">
+                <h3>System Status</h3>
+                <div class="value" id="status-text">
+                    <span class="status-indicator status-Offline" id="status-dot"></span>
+                    Loading...
+                </div>
+            </div>
+            <div class="card">
+                <h3>Videos Processed</h3>
+                <div class="value" id="processed-count">--</div>
+            </div>
+        </div>
+
+        <div class="terminal-container">
+            <div class="terminal-header">
+                <span class="terminal-title">Live Output Log</span>
+                <div class="loader" id="sync-loader"></div>
+            </div>
+            <div class="terminal-content" id="terminal">Waiting for logs...</div>
+        </div>
+    </div>
+
+    <script>
+        const terminal = document.getElementById('terminal');
+        const statusText = document.getElementById('status-text');
+        const statusDot = document.getElementById('status-dot');
+        const processedCount = document.getElementById('processed-count');
+
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                // Update Logs
+                if (terminal.textContent !== data.logs) {
+                    terminal.textContent = data.logs;
+                    terminal.scrollTop = terminal.scrollHeight; // Auto-scroll to bottom
+                }
+
+                // Update Processed Count
+                processedCount.textContent = data.processed_count;
+
+                // Update Status UI
+                let statusClass = "status-Offline";
+                if (data.status.includes("Active")) statusClass = "status-Active";
+                else if (data.status.includes("Sleeping")) statusClass = "status-Sleeping";
+                
+                statusText.innerHTML = `<span class="status-indicator ${statusClass} pulse"></span>${data.status}`;
+                
+            } catch (error) {
+                console.error("Failed to fetch status", error);
+                statusText.innerHTML = `<span class="status-indicator status-Offline"></span>Connection Lost`;
+            }
+        }
+
+        // Fetch immediately, then every 3 seconds
+        fetchStatus();
+        setInterval(fetchStatus, 3000);
+    </script>
+</body>
+</html>

@@ -44,7 +44,7 @@ def get_bot_status(last_logs: str) -> str:
         # Check if log was modified recently
         if LOG_FILE.exists():
             mod_time = os.path.getmtime(LOG_FILE)
-            if time.time() - mod_time < 300: # 5 minutes
+            if time.time() - mod_time < 1800: # 30 minutes
                 return "Active (Processing)"
         return "Offline / Unknown"
 

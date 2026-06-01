@@ -58,51 +58,74 @@ KEYWORDS: keyword1, keyword2, keyword3
 
     user_prompt = f"Find the {total_clips} most viral, mind-blowing, or controversial segments in this transcript:\n\n{transcript_text}"
 
-    # Use Groq API with Llama 3 instead of g4f
+    # --- Triple Fallback Chain for Text Extraction ---
     import os
-    import requests
     import time
     
-    GROQ_KEYS = [k.strip() for k in os.getenv("GROQ_API_KEYS", "").split(",") if k.strip()]
-    if not GROQ_KEYS:
-        log.error("No GROQ_API_KEYS found in environment!")
-        return []
+    # 1. DuckDuckGo AI (Free, Stable)
+    try:
+        log.info(f"Attempt 1: Asking DuckDuckGo AI (Claude-3-Haiku) to extract {total_clips} viral highlights...")
+        from duckduckgo_search import DDGS
+        ddgs = DDGS()
+        combined_prompt = f"{system_prompt}\n\n{user_prompt}"
+        output = ddgs.chat(combined_prompt, model="claude-3-haiku")
+        log.info(f"DuckDuckGo highlight extraction complete:\n{output}")
+        return _parse_highlights(output)
+    except Exception as e:
+        log.warning(f"DuckDuckGo failed: {e}")
         
-    log.info(f"Asking Groq (Llama 3 8B) to extract {total_clips} viral highlights...")
-    
-    for attempt in range(len(GROQ_KEYS)):
-        groq_key = GROQ_KEYS[attempt % len(GROQ_KEYS)]
-        
-        headers = {
-            "Authorization": f"Bearer {groq_key}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": "llama3-8b-8192",
-            "messages": [
+    # 2. g4f (Free, Hacky Backup)
+    try:
+        log.info(f"Attempt 2: Asking ChatGPT via g4f fallback...")
+        from g4f.client import Client as G4FClient
+        g4f_client = G4FClient()
+        response = g4f_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
-            ],
-            "temperature": 0.7
-        }
+            ]
+        )
+        output = response.choices[0].message.content
+        log.info(f"g4f extraction complete:\n{output}")
+        return _parse_highlights(output)
+    except Exception as e:
+        log.warning(f"g4f fallback failed: {e}")
         
-        try:
-            r = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=60)
-            if r.status_code == 429:
-                log.warning(f"Groq text extraction rate limited on key {attempt+1}. Trying next key...")
-                continue
+    # 3. Groq API (Official, Rate-Limited)
+    log.info(f"Attempt 3: Asking Groq (Llama 3 8B) API as final fallback...")
+    import requests
+    GROQ_KEYS = [k.strip() for k in os.getenv("GROQ_API_KEYS", "").split(",") if k.strip()]
+    
+    if GROQ_KEYS:
+        for attempt in range(len(GROQ_KEYS)):
+            groq_key = GROQ_KEYS[attempt % len(GROQ_KEYS)]
+            headers = {
+                "Authorization": f"Bearer {groq_key}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "llama3-8b-8192",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.7
+            }
+            try:
+                r = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=60)
+                if r.status_code == 429:
+                    log.warning(f"Groq text extraction rate limited on key {attempt+1}. Trying next key...")
+                    continue
+                r.raise_for_status()
+                output = r.json()["choices"][0]["message"]["content"]
+                log.info(f"Groq highlight extraction complete:\n{output}")
+                return _parse_highlights(output)
+            except Exception as e:
+                log.error(f"Groq extraction attempt {attempt+1} failed: {e}")
+                time.sleep(1)
                 
-            r.raise_for_status()
-            output = r.json()["choices"][0]["message"]["content"]
-            log.info(f"Groq highlight extraction complete:\n{output}")
-            return _parse_highlights(output)
-            
-        except Exception as e:
-            log.error(f"Groq extraction attempt {attempt+1} failed: {e}")
-            time.sleep(1)
-            
-    log.error("All Groq keys failed for highlight extraction.")
+    log.error("All text extraction fallbacks (DDG -> g4f -> Groq) completely failed.")
     return []
 
 def _parse_highlights(text: str) -> list:

@@ -50,7 +50,7 @@ def _setup_assets():
         for i, url in enumerate(GAMEPLAY_URLS):
             target_file = GAMEPLAYS_DIR / f"gameplay_{i}.mp4"
             if not target_file.exists():
-                cmd = [sys.executable, "-m", "yt_dlp"] + cookies_args + ["-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4", "-o", str(target_file), url]
+                cmd = [sys.executable, "-m", "yt_dlp"] + cookies_args + ["-f", "bv*+ba/b", "--merge-output-format", "mp4", "-o", str(target_file), url]
                 subprocess.run(cmd)
                 
     # Download Music

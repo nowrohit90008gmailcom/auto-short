@@ -99,7 +99,9 @@ KEYWORDS: keyword1, keyword2, keyword3
     import requests
     GROQ_KEYS = [k.strip() for k in os.getenv("GROQ_API_KEYS", "").split(",") if k.strip()]
     
-    if GROQ_KEYS:
+    if not GROQ_KEYS:
+        log.error("CRITICAL ERROR: YOU DO NOT HAVE A '.env' FILE WITH 'GROQ_API_KEYS' ON YOUR VPS! GROQ API SKIPPED.")
+    else:
         for attempt in range(len(GROQ_KEYS)):
             groq_key = GROQ_KEYS[attempt % len(GROQ_KEYS)]
             headers = {

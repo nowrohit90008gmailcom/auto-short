@@ -125,6 +125,11 @@ OUTRO: (Narrator Outro)
             
         model = os.getenv(provider["model_env"], provider["default_model"])
         
+        # Failsafe: Override deprecated Cerebras models from old .env files
+        if model == "llama3.1-70b":
+            model = "gpt-oss-120b"
+            log.warning("Detected deprecated Cerebras model 'llama3.1-70b' in .env! Automatically upgrading to 'gpt-oss-120b'.")
+        
         for key_idx, key in enumerate(keys):
             log.info(f"Attempting {provider['name']} extraction using model '{model}' (Key {key_idx+1})...")
             

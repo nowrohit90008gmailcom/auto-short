@@ -22,14 +22,21 @@ def get_last_n_lines(file_path: Path, n: int = 50) -> str:
         return f"Error reading logs: {e}"
 
 def get_processed_count() -> int:
-    if not HISTORY_FILE.exists():
+    profiles_dir = Path("workspace") / "profiles"
+    if not profiles_dir.exists():
         return 0
-    try:
-        with open(HISTORY_FILE, "r") as f:
-            data = json.load(f)
-            return len(data)
-    except Exception:
-        return 0
+    total = 0
+    for bot_dir in profiles_dir.iterdir():
+        if bot_dir.is_dir():
+            hist_file = bot_dir / "processed_history.json"
+            if hist_file.exists():
+                try:
+                    with open(hist_file, "r") as f:
+                        data = json.load(f)
+                        total += len(data)
+                except Exception:
+                    pass
+    return total
 
 def get_bot_status(last_logs: str) -> str:
     if not last_logs.strip():

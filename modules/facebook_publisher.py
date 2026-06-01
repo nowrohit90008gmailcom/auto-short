@@ -1,21 +1,16 @@
 import os
 import requests
-from dotenv import load_dotenv
 from utils.logger import get_logger
 
-load_dotenv()
 log = get_logger("facebook_publisher")
 
-def upload_to_facebook_reels(video_path: str, title: str, description: str, schedule_time: int = None) -> bool:
+def upload_to_facebook_reels(video_path: str, title: str, description: str, page_id: str, access_token: str, schedule_time: int = None) -> bool:
     """
     Uploads a local MP4 file to Facebook Reels using the 3-step Graph API process.
     If schedule_time (unix timestamp) is provided, it schedules the video.
     """
-    page_id = os.getenv("FB_PAGE_ID")
-    access_token = os.getenv("FB_PAGE_TOKEN")
-    
     if not page_id or not access_token:
-        log.warning("FB_PAGE_ID or FB_PAGE_TOKEN not found. Skipping Facebook upload.")
+        log.warning("FB_PAGE_ID or FB_PAGE_TOKEN not provided. Skipping Facebook upload.")
         return False
         
     if not os.path.exists(video_path):

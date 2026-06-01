@@ -8,29 +8,27 @@ from utils.logger import get_logger
 
 log = get_logger("channel_scraper")
 
-HISTORY_FILE = Path("workspace") / "processed_history.json"
-
-def _load_history() -> set:
-    if not HISTORY_FILE.exists():
+def _load_history(history_file: Path) -> set:
+    if not history_file.exists():
         return set()
     try:
-        with open(HISTORY_FILE, "r") as f:
+        with open(history_file, "r") as f:
             return set(json.load(f))
     except Exception:
         return set()
 
-def _save_history(history: set):
-    HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(HISTORY_FILE, "w") as f:
+def _save_history(history: set, history_file: Path):
+    history_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(history_file, "w") as f:
         json.dump(list(history), f)
 
-def mark_as_processed(video_id: str):
-    history = _load_history()
+def mark_as_processed(video_id: str, history_file: Path):
+    history = _load_history(history_file)
     history.add(video_id)
-    _save_history(history)
-    log.info(f"Marked video {video_id} as processed in history.")
+    _save_history(history, history_file)
+    log.info(f"Marked video {video_id} as processed in {history_file.name}")
 
-def get_random_unprocessed_video(channel_url: str) -> dict:
+def get_random_unprocessed_video(channel_url: str, history_file: Path) -> dict:
     """
     Fetches all videos from a channel/playlist, filters out processed ones,
     and returns a random video dict {"id": "...", "title": "...", "url": "..."}.
@@ -70,7 +68,7 @@ def get_random_unprocessed_video(channel_url: str) -> dict:
         log.warning("No videos found in channel.")
         return None
 
-    history = _load_history()
+    history = _load_history(history_file)
     unprocessed = [v for v in videos if v["id"] not in history]
     
     if not unprocessed:

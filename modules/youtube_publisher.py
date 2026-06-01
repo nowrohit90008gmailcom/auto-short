@@ -15,12 +15,11 @@ except ImportError:
 log = get_logger("youtube_publisher")
 
 SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
-CREDENTIALS_DIR = Path("workspace") / "credentials"
 
-def upload_to_youtube_shorts(video_path: str, title: str, description: str, privacy_status: str = "public", publish_at: str = None) -> bool:
+def upload_to_youtube_shorts(video_path: str, title: str, description: str, credentials_dir: Path, privacy_status: str = "public", publish_at: str = None) -> bool:
     """
     Uploads a short to YouTube using OAuth2.
-    Requires client_secrets.json in workspace/credentials.
+    Requires client_secrets.json in the provided credentials_dir.
     Generates token.json upon first authentication.
     If publish_at (ISO 8601 string) is provided, privacyStatus is forced to private and it is scheduled.
     """
@@ -28,10 +27,10 @@ def upload_to_youtube_shorts(video_path: str, title: str, description: str, priv
         log.error("google-api-python-client is not installed. Run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2")
         return False
 
-    CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+    credentials_dir.mkdir(parents=True, exist_ok=True)
     
-    client_secrets_file = CREDENTIALS_DIR / "client_secrets.json"
-    token_file = CREDENTIALS_DIR / "token.json"
+    client_secrets_file = credentials_dir / "client_secrets.json"
+    token_file = credentials_dir / "token.json"
     
     if not client_secrets_file.exists() and not token_file.exists():
         log.warning(f"YouTube Upload skipped: {client_secrets_file} not found.")

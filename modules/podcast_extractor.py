@@ -1,7 +1,9 @@
 import json
 import re
-from g4f.client import Client
+from dotenv import load_dotenv
 from utils.logger import get_logger
+
+load_dotenv()
 
 log = get_logger("podcast_extractor")
 

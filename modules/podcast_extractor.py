@@ -81,7 +81,7 @@ KEYWORDS: keyword1, keyword2, keyword3
             "url": "https://api.cerebras.ai/v1/chat/completions",
             "keys_env": "CEREBRAS_API_KEYS",
             "model_env": "CEREBRAS_MODEL",
-            "default_model": "llama-3.3-70b"
+            "default_model": "gpt-oss-120b"
         },
         {
             "name": "Groq",

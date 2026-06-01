@@ -73,7 +73,7 @@ KEYWORDS: keyword1, keyword2, keyword3
             "url": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
             "keys_env": "GEMINI_API_KEY",
             "model_env": "GEMINI_MODEL",
-            "default_model": "gemini-2.0-flash-lite"
+            "default_model": "gemini-3.5-flash"
         },
         {
             "name": "Cerebras",

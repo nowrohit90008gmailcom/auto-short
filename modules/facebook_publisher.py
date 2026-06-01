@@ -1,7 +1,9 @@
 import os
 import requests
+from dotenv import load_dotenv
 from utils.logger import get_logger
 
+load_dotenv()
 log = get_logger("facebook_publisher")
 
 def upload_to_facebook_reels(video_path: str, title: str, description: str, schedule_time: int = None) -> bool:

@@ -3,6 +3,7 @@ import time
 import random
 import datetime
 import pytz
+from dotenv import load_dotenv
 from pathlib import Path
 from utils.logger import get_logger
 from podcast_pipeline import run_podcast_pipeline
@@ -10,6 +11,7 @@ from modules.channel_scraper import get_random_unprocessed_video, mark_as_proces
 from modules.facebook_publisher import upload_to_facebook_reels
 from modules.youtube_publisher import upload_to_youtube_shorts
 
+load_dotenv()
 log = get_logger("auto_publisher")
 IST = pytz.timezone('Asia/Kolkata')
 

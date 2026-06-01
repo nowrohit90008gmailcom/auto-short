@@ -21,22 +21,37 @@ def get_last_n_lines(file_path: Path, n: int = 50) -> str:
     except Exception as e:
         return f"Error reading logs: {e}"
 
-def get_processed_count() -> int:
+def get_all_bots_info():
+    bots = []
     profiles_dir = Path("workspace") / "profiles"
-    if not profiles_dir.exists():
-        return 0
-    total = 0
-    for bot_dir in profiles_dir.iterdir():
-        if bot_dir.is_dir():
-            hist_file = bot_dir / "processed_history.json"
-            if hist_file.exists():
-                try:
-                    with open(hist_file, "r") as f:
-                        data = json.load(f)
-                        total += len(data)
-                except Exception:
-                    pass
-    return total
+    if profiles_dir.exists():
+        # Sort folders to display bot1, bot2, bot3 in order
+        for bot_dir in sorted(profiles_dir.iterdir()):
+            if bot_dir.is_dir():
+                count = 0
+                hist_file = bot_dir / "processed_history.json"
+                if hist_file.exists():
+                    try:
+                        with open(hist_file, "r") as f:
+                            count = len(json.load(f))
+                    except:
+                        pass
+                        
+                run_times = []
+                config_file = bot_dir / "config.json"
+                if config_file.exists():
+                    try:
+                        with open(config_file, "r") as f:
+                            run_times = json.load(f).get("run_times", [])
+                    except:
+                        pass
+                        
+                bots.append({
+                    "name": bot_dir.name.upper(),
+                    "processed": count,
+                    "schedule": ", ".join(run_times) if run_times else "Unscheduled"
+                })
+    return bots
 
 def get_bot_status(last_logs: str) -> str:
     if not last_logs.strip():
@@ -62,12 +77,16 @@ def index():
 @app.route("/api/status")
 def status():
     logs = get_last_n_lines(LOG_FILE, 100)
-    count = get_processed_count()
     current_status = get_bot_status(logs)
+    bots = get_all_bots_info()
+    
+    # Calculate global totals
+    total_processed = sum(b["processed"] for b in bots)
     
     return jsonify({
         "status": current_status,
-        "processed_count": count,
+        "total_processed": total_processed,
+        "bots": bots,
         "logs": logs
     })
 

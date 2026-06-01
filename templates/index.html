@@ -207,18 +207,23 @@
             <p class="subtitle">Autonomous AI Publisher Dashboard</p>
         </header>
 
-        <div class="stats-grid">
-            <div class="card">
+        <div class="stats-grid" id="main-stats">
+            <div class="card" style="grid-column: span 2;">
                 <h3>System Status</h3>
                 <div class="value" id="status-text">
                     <span class="status-indicator status-Offline" id="status-dot"></span>
                     Loading...
                 </div>
             </div>
-            <div class="card">
-                <h3>Videos Processed</h3>
+            <div class="card" style="grid-column: span 2;">
+                <h3>Total Network Videos Processed</h3>
                 <div class="value" id="processed-count">--</div>
             </div>
+        </div>
+
+        <h3 style="color: var(--text-muted); text-transform: uppercase; font-size: 0.85rem; letter-spacing: 1px; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Bot Profiles</h3>
+        <div class="stats-grid" id="bot-grid" style="grid-template-columns: 1fr;">
+            <!-- Bots will be injected here by JS -->
         </div>
 
         <div class="terminal-container">
@@ -237,8 +242,8 @@
     <script>
         const terminal = document.getElementById('terminal');
         const statusText = document.getElementById('status-text');
-        const statusDot = document.getElementById('status-dot');
         const processedCount = document.getElementById('processed-count');
+        const botGrid = document.getElementById('bot-grid');
 
         async function fetchStatus() {
             try {
@@ -251,8 +256,8 @@
                     terminal.scrollTop = terminal.scrollHeight; // Auto-scroll to bottom
                 }
 
-                // Update Processed Count
-                processedCount.textContent = data.processed_count;
+                // Update Total Count
+                processedCount.textContent = data.total_processed;
 
                 // Update Status UI
                 let statusClass = "status-Offline";
@@ -260,6 +265,22 @@
                 else if (data.status.includes("Sleeping")) statusClass = "status-Sleeping";
                 
                 statusText.innerHTML = `<span class="status-indicator ${statusClass} pulse"></span>${data.status}`;
+                
+                // Render Bot Grid
+                if (data.bots && data.bots.length > 0) {
+                    botGrid.innerHTML = data.bots.map(bot => `
+                        <div class="card" style="display: flex; justify-content: space-between; align-items: center; text-align: left;">
+                            <div>
+                                <h3 style="color: #a855f7;">${bot.name}</h3>
+                                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Schedule: ${bot.schedule}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Processed</div>
+                                <div class="value" style="margin-top: 2px; font-size: 1.2rem;">${bot.processed}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
                 
             } catch (error) {
                 console.error("Failed to fetch status", error);

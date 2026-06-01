@@ -109,7 +109,7 @@ KEYWORDS: keyword1, keyword2, keyword3
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "llama3-8b-8192",
+                "model": "llama-3.1-8b-instant",
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -126,8 +126,9 @@ KEYWORDS: keyword1, keyword2, keyword3
                 output = r.json()["choices"][0]["message"]["content"]
                 log.info(f"Groq highlight extraction complete:\n{output}")
                 return _parse_highlights(output)
-            except Exception as e:
-                log.error(f"Groq extraction attempt {attempt+1} failed: {e}")
+            except requests.exceptions.RequestException as e:
+                error_details = e.response.text if e.response is not None else str(e)
+                log.error(f"Groq extraction attempt {attempt+1} failed: {e} - Details: {error_details}")
                 time.sleep(1)
                 
     log.error("All text extraction fallbacks (DDG -> g4f -> Groq) completely failed.")

@@ -83,11 +83,24 @@ def status():
     # Calculate global totals
     total_processed = sum(b["processed"] for b in bots)
     
+    # Extract errors separately
+    error_logs = []
+    for line in logs.split('\n'):
+        line_lower = line.lower()
+        if 'error' in line_lower or 'traceback' in line_lower or 'failed' in line_lower or 'exception' in line_lower:
+            # Skip false positives if needed
+            if 'http error' in line_lower or 'modulenotfound' in line_lower or 'traceback' in line_lower or 'error' in line_lower:
+                 error_logs.append(line.strip())
+    
+    # Keep only the last 20 errors to prevent flooding the UI
+    error_logs = error_logs[-20:]
+    
     return jsonify({
         "status": current_status,
         "total_processed": total_processed,
         "bots": bots,
-        "logs": logs
+        "logs": logs,
+        "errors": error_logs
     })
 
 if __name__ == "__main__":

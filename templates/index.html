@@ -226,10 +226,27 @@
             <!-- Bots will be injected here by JS -->
         </div>
 
+        <!-- Error Panel -->
+        <div class="terminal-container" style="border-color: rgba(239, 68, 68, 0.4); margin-bottom: 2rem; display: none;" id="error-panel">
+            <div class="terminal-header" style="border-bottom-color: rgba(239, 68, 68, 0.4);">
+                <span class="terminal-title" style="color: #ef4444;">🚨 Critical Errors</span>
+            </div>
+            <div class="terminal-content" id="error-logs" style="color: #ef4444; height: 150px;"></div>
+        </div>
+
+        <!-- Terminal Panel -->
         <div class="terminal-container">
-            <div class="terminal-header">
-                <span class="terminal-title">Live Output Log</span>
-                <div class="loader" id="sync-loader"></div>
+            <div class="terminal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <span class="terminal-title">Live Output Log</span>
+                    <select id="log-filter" style="margin-left: 10px; background: rgba(0,0,0,0.5); color: white; border: 1px solid var(--border-color); border-radius: 4px; padding: 2px 5px;">
+                        <option value="all">All Logs</option>
+                        <option value="bot1">Bot 1 Only</option>
+                        <option value="bot2">Bot 2 Only</option>
+                        <option value="bot3">Bot 3 Only</option>
+                    </select>
+                </div>
+                <div class="loader" id="sync-loader" style="margin: 0;"></div>
             </div>
             <div class="terminal-content" id="terminal">Waiting for logs...</div>
         </div>
@@ -244,19 +261,21 @@
         const statusText = document.getElementById('status-text');
         const processedCount = document.getElementById('processed-count');
         const botGrid = document.getElementById('bot-grid');
+        const errorPanel = document.getElementById('error-panel');
+        const errorLogs = document.getElementById('error-logs');
+        const logFilter = document.getElementById('log-filter');
+        
+        let rawLogs = "";
 
         async function fetchStatus() {
             try {
                 const response = await fetch('/api/status');
                 const data = await response.json();
                 
-                // Update Logs
-                if (terminal.textContent !== data.logs) {
-                    terminal.textContent = data.logs;
-                    terminal.scrollTop = terminal.scrollHeight; // Auto-scroll to bottom
-                }
+                rawLogs = data.logs;
+                filterLogs(); // Applies the filter and updates terminal
 
-                // Update Total Count
+                // Update Processed Count
                 processedCount.textContent = data.total_processed;
 
                 // Update Status UI
@@ -266,7 +285,7 @@
                 
                 statusText.innerHTML = `<span class="status-indicator ${statusClass} pulse"></span>${data.status}`;
                 
-                // Render Bot Grid
+                // Render Bot Grid (Separate Video Counts)
                 if (data.bots && data.bots.length > 0) {
                     botGrid.innerHTML = data.bots.map(bot => `
                         <div class="card" style="display: flex; justify-content: space-between; align-items: center; text-align: left;">
@@ -282,11 +301,42 @@
                     `).join('');
                 }
                 
+                // Handle Errors
+                if (data.errors && data.errors.length > 0) {
+                    errorPanel.style.display = "block";
+                    const errHtml = data.errors.join('\\n');
+                    if (errorLogs.textContent !== errHtml) {
+                        errorLogs.textContent = errHtml;
+                        errorLogs.scrollTop = errorLogs.scrollHeight;
+                    }
+                } else {
+                    errorPanel.style.display = "none";
+                }
+                
             } catch (error) {
                 console.error("Failed to fetch status", error);
                 statusText.innerHTML = `<span class="status-indicator status-Offline"></span>Connection Lost`;
             }
         }
+        
+        function filterLogs() {
+            const filter = logFilter.value;
+            let displayLogs = rawLogs;
+            
+            if (filter !== "all") {
+                const lines = rawLogs.split('\\n');
+                // Extremely simple filter: keep lines with the bot name, or try to keep blocks
+                displayLogs = lines.filter(line => line.toLowerCase().includes(filter)).join('\\n');
+                if (!displayLogs) displayLogs = "No specific logs found for " + filter.toUpperCase() + " in the recent output window...";
+            }
+            
+            if (terminal.textContent !== displayLogs) {
+                terminal.textContent = displayLogs;
+                terminal.scrollTop = terminal.scrollHeight; // Auto-scroll to bottom
+            }
+        }
+        
+        logFilter.addEventListener('change', filterLogs);
 
         // Fetch immediately, then every 3 seconds
         fetchStatus();

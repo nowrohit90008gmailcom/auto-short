@@ -143,7 +143,7 @@ def run_profile(bot_name: str, bot_dir: Path, target_dt: datetime.datetime):
     mark_as_processed(video["id"], history_file)
     log.info(f"=== {bot_name} RUN COMPLETE ===")
 
-def start_daemon(instant_run: bool = False):
+def start_daemon(instant_run=False, specific_bot=None):
     log.info("Starting Multi-Bot Event Scheduler (IST Timezone)...")
     
     first_loop = True
@@ -188,9 +188,16 @@ def start_daemon(instant_run: bool = False):
                     break
             
             if instant_run and first_loop:
-                log.info("INSTANT RUN TRIGGERED! Forcing processing of all profiles sequentially right now...")
-                for b_name, data in profiles.items():
-                    run_profile(b_name, data["path"], now_ist)
+                if specific_bot:
+                    if specific_bot in profiles:
+                        log.info(f"INSTANT RUN TRIGGERED FOR {specific_bot.upper()}! Forcing processing right now...")
+                        run_profile(specific_bot, profiles[specific_bot]["path"], now_ist)
+                    else:
+                        log.error(f"Bot '{specific_bot}' not found in profiles!")
+                else:
+                    log.info("INSTANT RUN TRIGGERED! Forcing processing of all profiles sequentially right now...")
+                    for b_name, data in profiles.items():
+                        run_profile(b_name, data["path"], now_ist)
                 first_loop = False
                 continue
                 
@@ -211,6 +218,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--instant", action="store_true", help="Force an instant run of all bots bypassing schedule")
+    parser.add_argument("--bot", type=str, help="Specify a single bot to run instantly (e.g. bot3)", default=None)
     args = parser.parse_args()
     
-    start_daemon(instant_run=args.instant)
+    start_daemon(instant_run=args.instant, specific_bot=args.bot)

@@ -186,7 +186,7 @@ def _parse_highlights(text: str) -> list:
     blocks = text.split('[')
     
     for block in blocks:
-        if not block.strip():
+        if not block.strip() or ']' not in block:
             continue
         try:
             # Parse [MM:SS-MM:SS]

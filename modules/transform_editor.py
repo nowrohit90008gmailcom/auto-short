@@ -66,8 +66,8 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
     # Filter Complex Building
     filters = []
     
-    # Scale podcast to fit top half (720x896, which is 70% of 1280)
-    filters.append(f"[0:v]scale=720:896:force_original_aspect_ratio=decrease,pad=720:896:(ow-iw)/2:(oh-ih)/2[top]")
+    # Scale podcast to fill top half (720x896, which is 70% of 1280) and crop sides to remove black bars
+    filters.append(f"[0:v]scale=720:896:force_original_aspect_ratio=increase,crop=720:896[top]")
     
     # Scale gameplay to fill bottom half (720x384, which is 30% of 1280)
     filters.append(f"[{gp_idx}:v]scale=720:384:force_original_aspect_ratio=increase,crop=720:384[bottom]")

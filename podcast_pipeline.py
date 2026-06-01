@@ -40,6 +40,9 @@ def _setup_assets():
     GAMEPLAYS_DIR.mkdir(parents=True, exist_ok=True)
     MUSIC_DIR.mkdir(parents=True, exist_ok=True)
     
+    cookies_file = WORKSPACE / "cookies.txt"
+    cookies_args = ["--cookies", str(cookies_file)] if cookies_file.exists() else []
+
     # Download Gameplays
     existing_gameplays = list(GAMEPLAYS_DIR.glob("*.mp4"))
     if len(existing_gameplays) == 0:
@@ -47,7 +50,7 @@ def _setup_assets():
         for i, url in enumerate(GAMEPLAY_URLS):
             target_file = GAMEPLAYS_DIR / f"gameplay_{i}.mp4"
             if not target_file.exists():
-                cmd = [sys.executable, "-m", "yt_dlp", "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4", "-o", str(target_file), url]
+                cmd = [sys.executable, "-m", "yt_dlp"] + cookies_args + ["-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4", "-o", str(target_file), url]
                 subprocess.run(cmd)
                 
     # Download Music
@@ -57,7 +60,7 @@ def _setup_assets():
         for i, url in enumerate(MUSIC_URLS):
             target_file = MUSIC_DIR / f"bgm_{i}.mp3"
             if not target_file.exists():
-                cmd = [sys.executable, "-m", "yt_dlp", "-x", "--audio-format", "mp3", "-o", str(target_file), url]
+                cmd = [sys.executable, "-m", "yt_dlp"] + cookies_args + ["-x", "--audio-format", "mp3", "-o", str(target_file), url]
                 subprocess.run(cmd)
 
 def run_podcast_pipeline(url: str, title: str):

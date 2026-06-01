@@ -67,6 +67,10 @@ def download(url: str, movie_name: str) -> dict:
         "ignoreerrors": False,
     }
     
+    cookies_file = WORKSPACE / "cookies.txt"
+    if cookies_file.exists():
+        ydl_opts["cookiefile"] = str(cookies_file)
+        
     log.info(f"Downloading: {movie_name} from {url}")
     
     # Download

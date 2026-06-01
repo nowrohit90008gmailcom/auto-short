@@ -58,7 +58,9 @@ def get_bot_status(last_logs: str) -> str:
         return "Offline"
     last_line = last_logs.strip().split("\n")[-1]
     
-    if "Sleeping for" in last_line:
+    if "Factory sleeping" in last_line or "Queue is full" in last_line:
+        return "Sleeping (Queue Full)"
+    elif "Sleeping this bot" in last_line:
         return "Sleeping (Idle)"
     elif "Fatal error" in last_line or "Traceback" in last_line:
         return "Error / Offline"

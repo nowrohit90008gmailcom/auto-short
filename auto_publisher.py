@@ -70,15 +70,10 @@ def get_seconds_until(target_dt: datetime.datetime) -> int:
     return max(0, int(delta))
 
 def calculate_schedule_timestamps(target_dt: datetime.datetime):
-    schedules = []
-    for offset_hr in [5, 6, 7]: 
-        # Schedule the videos to drop 5, 6, 7 hours after the event time
-        # E.g., if event is 00:00, videos drop at 05:00, 06:00, 07:00
-        drop_dt = target_dt + datetime.timedelta(hours=offset_hr)
-        unix_ts = int(drop_dt.timestamp())
-        iso_str = drop_dt.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        schedules.append((unix_ts, iso_str))
-    return schedules
+    # Drop at the exact target time (no offset)
+    unix_ts = int(target_dt.timestamp())
+    iso_str = target_dt.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    return [(unix_ts, iso_str)]
 
 def run_profile(bot_name: str, bot_dir: Path, target_dt: datetime.datetime):
     log.info(f"=== PROCESSING PROFILE: {bot_name} ===")
@@ -112,7 +107,7 @@ def run_profile(bot_name: str, bot_dir: Path, target_dt: datetime.datetime):
     schedules = calculate_schedule_timestamps(target_dt)
     
     for idx, short in enumerate(generated_shorts):
-        if idx >= 3:
+        if idx >= 1:
             break
             
         fb_unix, yt_iso = schedules[idx]

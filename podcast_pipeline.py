@@ -63,8 +63,7 @@ def _setup_assets():
 def run_podcast_pipeline(url: str, title: str):
     log.info(f"Starting Transformative Podcast Pipeline for: {title}")
     
-    # Temporarily bypassed for quick sample
-    # _setup_assets()
+    _setup_assets()
     
     # 1. Download
     download_res = download(url, title)
@@ -81,7 +80,7 @@ def run_podcast_pipeline(url: str, title: str):
     highlights = []
     max_retries = 3
     for attempt in range(max_retries):
-        raw_highlights = extract_viral_highlights(words, total_clips=3)
+        raw_highlights = extract_viral_highlights(words, total_clips=1)
         if raw_highlights:
             for h in raw_highlights:
                 dur = h["end"] - h["start"]

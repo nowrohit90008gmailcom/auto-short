@@ -31,7 +31,17 @@ def load_profiles() -> dict:
         return profiles
     for bot_dir in PROFILES_DIR.iterdir():
         if bot_dir.is_dir():
-            profiles[bot_dir.name] = {"path": bot_dir}
+            config_file = bot_dir / "config.json"
+            if config_file.exists():
+                try:
+                    with open(config_file, "r") as f:
+                        config = json.load(f)
+                        profiles[bot_dir.name] = {
+                            "path": bot_dir,
+                            "run_times": config.get("run_times", ["08:00", "20:00"])
+                        }
+                except Exception as e:
+                    log.error(f"Error loading {config_file}: {e}")
     return profiles
 
 def calculate_schedule_timestamps(target_dt: datetime.datetime):
@@ -128,8 +138,9 @@ def start_daemon():
         
         for bot_name, data in profiles.items():
             bot_dir = data["path"]
+            run_times = data["run_times"]
             
-            target_dt = get_next_available_slot(bot_dir, videos_per_day=2)
+            target_dt = get_next_available_slot(bot_dir, run_times)
             
             now = datetime.datetime.now(IST)
             days_in_future = (target_dt - now).days

@@ -5,35 +5,49 @@ import pytz
 
 IST = pytz.timezone('Asia/Kolkata')
 
-def get_next_available_slot(bot_dir: Path, videos_per_day: int = 2) -> datetime.datetime:
+def get_next_available_slot(bot_dir: Path, run_times: list) -> datetime.datetime:
     """
     Reads the calendar state for the bot.
-    If no state exists, starts scheduling from Tomorrow at 8:00 AM.
-    If state exists, increments by (24 / videos_per_day) hours.
+    If no state exists, starts scheduling on Tomorrow using the first run_time.
+    If state exists, picks the next chronological run_time, rolling over to the next day if necessary.
     Returns the exact datetime.datetime (IST).
     """
     state_file = bot_dir / "calendar_state.json"
+    now_ist = datetime.datetime.now(IST)
     
-    interval_hours = 24 / videos_per_day
+    # Sort run_times chronologically
+    parsed_times = []
+    for t_str in run_times:
+        h, m = map(int, t_str.split(":"))
+        parsed_times.append((h, m))
+    parsed_times.sort()
     
     if not state_file.exists():
-        # Start tomorrow at 8:00 AM IST
-        now = datetime.datetime.now(IST)
-        tomorrow = now + datetime.timedelta(days=1)
-        next_slot = tomorrow.replace(hour=8, minute=0, second=0, microsecond=0)
-    else:
-        with open(state_file, "r") as f:
-            data = json.load(f)
-            last_dt_iso = data.get("last_scheduled_time")
-            last_dt = datetime.datetime.fromisoformat(last_dt_iso)
-            
-        next_slot = last_dt + datetime.timedelta(hours=interval_hours)
+        tomorrow = now_ist + datetime.timedelta(days=1)
+        next_slot = tomorrow.replace(hour=parsed_times[0][0], minute=parsed_times[0][1], second=0, microsecond=0)
+        return next_slot
         
-    # Prevent scheduling backwards in time (if bot was offline for a long time)
-    if next_slot < datetime.datetime.now(IST) + datetime.timedelta(hours=1):
-        now = datetime.datetime.now(IST)
-        tomorrow = now + datetime.timedelta(days=1)
-        next_slot = tomorrow.replace(hour=8, minute=0, second=0, microsecond=0)
+    with open(state_file, "r") as f:
+        data = json.load(f)
+        last_dt_iso = data.get("last_scheduled_time")
+        last_dt = datetime.datetime.fromisoformat(last_dt_iso)
+        
+    # Find the next slot after last_dt
+    next_slot = None
+    for h, m in parsed_times:
+        if h > last_dt.hour or (h == last_dt.hour and m > last_dt.minute):
+            next_slot = last_dt.replace(hour=h, minute=m, second=0, microsecond=0)
+            break
+            
+    if not next_slot:
+        # Roll over to next day
+        tomorrow = last_dt + datetime.timedelta(days=1)
+        next_slot = tomorrow.replace(hour=parsed_times[0][0], minute=parsed_times[0][1], second=0, microsecond=0)
+        
+    # Prevent scheduling backwards in time
+    if next_slot < now_ist + datetime.timedelta(hours=1):
+        tomorrow = now_ist + datetime.timedelta(days=1)
+        next_slot = tomorrow.replace(hour=parsed_times[0][0], minute=parsed_times[0][1], second=0, microsecond=0)
         
     return next_slot
 

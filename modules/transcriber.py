@@ -151,15 +151,82 @@ def _transcribe_chunk_local(audio_path: str) -> dict:
     }
 
 
+def _transcribe_chunk_deepgram(audio_path: str) -> dict:
+    """Send audio chunk to Deepgram API. Returns {text, words, segments}."""
+    import requests
+    from indic_transliteration import sanscript
+    
+    # Check for Deepgram key, default to the one provided by user if missing in ENV
+    deepgram_key = os.getenv("DEEPGRAM_API_KEY", "169698f4f7fc67e3138db321d183dd011f057844")
+    
+    url = "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&language=hi"
+    headers = {
+        "Authorization": f"Token {deepgram_key}",
+        "Content-Type": "audio/wav"
+    }
+    
+    log.info("Sending chunk to Deepgram Nova-2 for ultra-fast transcription...")
+    with open(audio_path, "rb") as f:
+        r = requests.post(url, headers=headers, data=f, timeout=180)
+        
+    r.raise_for_status()
+    data = r.json()
+    
+    try:
+        channel = data["results"]["channels"][0]
+        alt = channel["alternatives"][0]
+        
+        words = []
+        for w in alt.get("words", []):
+            word_text = w.get("punctuated_word", w.get("word", ""))
+            word_text = sanscript.transliterate(word_text, sanscript.DEVANAGARI, sanscript.ITRANS)
+            words.append({
+                "word": word_text,
+                "start": w.get("start", 0.0),
+                "end": w.get("end", 0.0)
+            })
+            
+        segments = []
+        for p in alt.get("paragraphs", {}).get("paragraphs", []):
+            for s in p.get("sentences", []):
+                text = s.get("text", "").strip()
+                text = sanscript.transliterate(text, sanscript.DEVANAGARI, sanscript.ITRANS)
+                segments.append({
+                    "start": s.get("start", 0.0),
+                    "end": s.get("end", 0.0),
+                    "text": text
+                })
+                
+        # Fallback if no paragraphs/sentences were generated
+        if not segments and words:
+            segments.append({
+                "start": words[0]["start"],
+                "end": words[-1]["end"],
+                "text": " ".join([w["word"] for w in words])
+            })
+            
+        full_text = sanscript.transliterate(alt.get("transcript", ""), sanscript.DEVANAGARI, sanscript.ITRANS)
+        
+        return {
+            "text": full_text,
+            "words": words,
+            "segments": segments
+        }
+    except KeyError as e:
+        log.error(f"Failed to parse Deepgram response: {e}")
+        raise RuntimeError("Deepgram API returned an invalid structure.")
+
+
 def _transcribe_with_retry(audio_path: str, max_retries: int = 3) -> dict:
     """Transcribe with exponential backoff retry for transient errors."""
     import time
     for attempt in range(max_retries):
         try:
-            return _transcribe_chunk_groq(audio_path)
+            # We will use Deepgram directly now!
+            return _transcribe_chunk_deepgram(audio_path)
         except Exception as e:
-            if "exhausted" in str(e).lower() or attempt == max_retries - 1:
-                log.warning(f"Groq transcription failed ({e}). Falling back to Local Whisper...")
+            if attempt == max_retries - 1:
+                log.warning(f"Deepgram failed ({e}). Falling back to Local Whisper...")
                 return _transcribe_chunk_local(audio_path)
             
             wait = 5 * (2 ** attempt)  # 5s, 10s, 20s

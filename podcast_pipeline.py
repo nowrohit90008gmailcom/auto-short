@@ -63,7 +63,8 @@ def _setup_assets():
 def run_podcast_pipeline(url: str, title: str):
     log.info(f"Starting Transformative Podcast Pipeline for: {title}")
     
-    _setup_assets()
+    # Temporarily bypassed for quick sample
+    # _setup_assets()
     
     # 1. Download
     download_res = download(url, title)

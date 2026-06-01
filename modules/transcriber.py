@@ -117,6 +117,40 @@ def _transcribe_chunk_groq(audio_path: str) -> dict:
     raise RuntimeError("All Groq keys exhausted for transcription")
 
 
+def _transcribe_chunk_local(audio_path: str) -> dict:
+    """Local fallback using openai-whisper running on CPU."""
+    import whisper
+    from indic_transliteration import sanscript
+    log.info("Falling back to local CPU whisper for transcription (this may take a bit longer)...")
+    model = whisper.load_model("base")
+    result = model.transcribe(audio_path, language="hi", word_timestamps=True)
+    
+    words = []
+    segments = []
+    for s in result.get("segments", []):
+        text = s.get("text", "").strip()
+        text = sanscript.transliterate(text, sanscript.DEVANAGARI, sanscript.ITRANS)
+        segments.append({
+            "start": s.get("start", 0),
+            "end": s.get("end", 0),
+            "text": text,
+        })
+        for w in s.get("words", []):
+            word = w.get("word", "").strip()
+            word = sanscript.transliterate(word, sanscript.DEVANAGARI, sanscript.ITRANS)
+            words.append({
+                "word": word,
+                "start": w.get("start", 0),
+                "end": w.get("end", 0)
+            })
+            
+    return {
+        "text": sanscript.transliterate(result.get("text", ""), sanscript.DEVANAGARI, sanscript.ITRANS),
+        "words": words,
+        "segments": segments
+    }
+
+
 def _transcribe_with_retry(audio_path: str, max_retries: int = 3) -> dict:
     """Transcribe with exponential backoff retry for transient errors."""
     import time
@@ -124,8 +158,10 @@ def _transcribe_with_retry(audio_path: str, max_retries: int = 3) -> dict:
         try:
             return _transcribe_chunk_groq(audio_path)
         except Exception as e:
-            if attempt == max_retries - 1:
-                raise
+            if "exhausted" in str(e).lower() or attempt == max_retries - 1:
+                log.warning(f"Groq transcription failed ({e}). Falling back to Local Whisper...")
+                return _transcribe_chunk_local(audio_path)
+            
             wait = 5 * (2 ** attempt)  # 5s, 10s, 20s
             log.warning(f"Transcription attempt {attempt + 1} failed: {e}, "
                         f"retrying in {wait}s...")

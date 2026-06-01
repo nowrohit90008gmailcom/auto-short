@@ -18,23 +18,29 @@ PODCASTS_DIR = WORKSPACE / "podcasts"
 OUTPUT_DIR = WORKSPACE / "podcast_shorts"
 ASSETS_DIR = WORKSPACE / "assets"
 GAMEPLAY_FILE = ASSETS_DIR / "gameplay.mp4"
+BACKGROUND_MUSIC_FILE = ASSETS_DIR / "bgm.mp3"
 
 for d in [PODCASTS_DIR, OUTPUT_DIR, ASSETS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
-def _ensure_gameplay_video():
-    """Downloads a royalty-free gameplay video if we don't have one."""
+def _ensure_assets():
+    """Downloads a royalty-free gameplay video and background music if we don't have them."""
     if not GAMEPLAY_FILE.exists():
         log.info("Downloading base gameplay video for split-screen...")
-        # A generic 10-minute non-copyrighted parkour/gameplay video
         url = "https://www.youtube.com/watch?v=n_Dv4JMiwK8" 
         cmd = [sys.executable, "-m", "yt_dlp", "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4", "-o", str(GAMEPLAY_FILE), url]
+        subprocess.run(cmd, check=True)
+        
+    if not BACKGROUND_MUSIC_FILE.exists():
+        log.info("Downloading viral background music...")
+        bgm_url = "https://youtu.be/KgayxOF4Y7E"
+        cmd = [sys.executable, "-m", "yt_dlp", "-x", "--audio-format", "mp3", "-o", str(BACKGROUND_MUSIC_FILE), bgm_url]
         subprocess.run(cmd, check=True)
 
 def run_podcast_pipeline(url: str, title: str):
     log.info(f"Starting Transformative Podcast Pipeline for: {title}")
     
-    _ensure_gameplay_video()
+    _ensure_assets()
     
     # 1. Download
     download_res = download(url, title)
@@ -116,6 +122,7 @@ def run_podcast_pipeline(url: str, title: str):
         success = assemble_transformative_short(
             podcast_clip=clip_path,
             gameplay_video=str(GAMEPLAY_FILE),
+            bgm_audio=str(BACKGROUND_MUSIC_FILE),
             broll_video=b_vid,
             captions_ass=captions_path,
             output_path=final_path,
@@ -127,7 +134,7 @@ def run_podcast_pipeline(url: str, title: str):
             generated_shorts.append({
                 "video_path": final_path,
                 "title": highlight["title"],
-                "description": f"Check out this crazy moment from {title}! #shorts #podcast #viral"
+                "description": highlight.get("description", f"Check out this crazy moment from {title}! #shorts #podcast #viral")
             })
             
     return generated_shorts

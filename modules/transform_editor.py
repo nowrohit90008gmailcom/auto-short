@@ -6,11 +6,12 @@ from utils.logger import get_logger
 
 log = get_logger("transform_editor")
 
-def assemble_transformative_short(podcast_clip: str, gameplay_video: str, broll_video: str, captions_ass: str, output_path: str, title_hook: str):
+def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_audio: str, broll_video: str, captions_ass: str, output_path: str, title_hook: str):
     """
     Assembles a highly transformative vertical short to bypass Reused Content filters.
     - Top half: Podcast
     - Bottom half: Gameplay (randomly sliced)
+    - Background Music: Lo-fi/Phonk at 10% volume
     - Overlay: B-roll on top half for seconds 2-5
     - Captions: Center animated
     """
@@ -56,6 +57,12 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, broll_
         cmd.extend(["-i", broll_video])
         broll_idx = 2
         
+    # Input 3: Background Music (looped)
+    has_bgm = bgm_audio and os.path.exists(bgm_audio)
+    if has_bgm:
+        cmd.extend(["-stream_loop", "-1", "-i", bgm_audio])
+        bgm_idx = 3 if has_broll else 2
+        
     # Filter Complex Building
     filters = []
     
@@ -84,9 +91,17 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, broll_
     else:
         filters.append(f"{current_out}copy[final]")
         
-    cmd.extend(["-filter_complex", ";".join(filters)])
-    cmd.extend(["-map", "[final]"])
-    cmd.extend(["-map", "0:a?"]) # Map audio from podcast
+    # Audio Mixing
+    if has_bgm:
+        # Lower BGM volume to 7%, Podcast at 100%
+        filters.append(f"[0:a]volume=1.0[a1];[{bgm_idx}:a]volume=0.07[a2];[a1][a2]amix=inputs=2:duration=first:dropout_transition=2[a_out]")
+        cmd.extend(["-filter_complex", ";".join(filters)])
+        cmd.extend(["-map", "[final]"])
+        cmd.extend(["-map", "[a_out]"])
+    else:
+        cmd.extend(["-filter_complex", ";".join(filters)])
+        cmd.extend(["-map", "[final]"])
+        cmd.extend(["-map", "0:a?"]) # Map audio from podcast directly
     
     # Output settings: 720p 30fps
     cmd.extend([

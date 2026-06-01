@@ -8,3 +8,4 @@ google-auth-oauthlib>=1.0.0
 google-api-python-client>=2.90.0
 flask>=3.0.0
 pytz>=2024.1
+g4f>=3.0.0

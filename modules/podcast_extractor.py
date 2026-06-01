@@ -39,23 +39,24 @@ def extract_viral_highlights(transcript_words: list, total_clips: int = 3) -> li
     # Truncate to avoid context limits if podcast is huge
     transcript_text = transcript_text[:30000] 
 
-    system_prompt = """You are an elite TikTok/YouTube Shorts content curator focused on MAXIMUM WATCH TIME and PROFIT.
-Your job is to read a podcast transcript and extract the most VIRAL, CONTROVERSIAL, or FASCINATING segments.
+    system_prompt = """You are an elite TikTok/YouTube Shorts content curator focused on MAXIMUM WATCH TIME and VIRALITY.
+Your job is to read a podcast transcript and extract the most VIRAL, EXTRAORDINARY, CONTROVERSIAL, or FASCINATING segments.
 
-CRITICAL RULES FOR HIGH PROFITS:
-1. LENGTH: Every single clip MUST be between 60 and 170 seconds long. Calculate the timestamps carefully. DO NOT give me a 15-second or 30-second clip. Long clips equal higher watch time and higher payouts.
-2. HUGE HOOK: The segment MUST start with a massive, curiosity-inducing hook (a controversial statement, a crazy story, or a mind-blowing fact).
-3. CONTINUOUS FLOW: The segment must be a continuous chunk of dialogue without weird jumps.
-4. KEYWORDS: Provide 2-3 single-word visual keywords for B-roll (e.g. "money", "rocket", "brain", "scary").
+CRITICAL RULES FOR VIRALITY:
+1. LENGTH: Every clip MUST be between 60 and 170 seconds long. Calculate the timestamps carefully. DO NOT give me a 15-second or 30-second clip. Long clips equal higher watch time.
+2. HUGE HOOK: The segment MUST start with a massive, curiosity-inducing hook (a highly controversial statement, an extraordinary crazy story, or a mind-blowing fact).
+3. CLICKBAIT TITLE: Write an extreme, curiosity-driven title optimized for the YouTube Shorts algorithm (e.g., "He Revealed The TRUTH About..." or "The CRAZIEST Story Ever Told...").
+4. DESCRIPTION: Write a highly engaging, SEO-optimized YouTube description with viral hashtags.
+5. KEYWORDS: Provide 2-3 single-word visual keywords for B-roll (e.g. "money", "rocket", "brain", "scary").
 
 FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
 [MM:SS-MM:SS]
 TITLE: (Catchy viral title)
+DESCRIPTION: (Viral description with #hashtags)
 KEYWORDS: keyword1, keyword2, keyword3
+"""
 
-(Repeat for requested number of clips. Verify that MM:SS-MM:SS spans at least 1 minute and 20 seconds!)"""
-
-    user_prompt = f"Find the {total_clips} most viral segments in this transcript:\n\n{transcript_text}"
+    user_prompt = f"Find the {total_clips} most viral, mind-blowing, or controversial segments in this transcript:\n\n{transcript_text}"
 
     client = Client()
     log.info(f"Asking ChatGPT to extract {total_clips} viral highlights...")
@@ -93,15 +94,18 @@ def _parse_highlights(text: str) -> list:
             e_m, e_s = end_str.split(':')
             end_time = int(e_m) * 60 + int(e_s)
             
-            # Extract title and keywords
+            # Extract title, desc, and keywords
             title = "Viral Clip"
+            description = "Check out this crazy moment! #shorts #viral"
             keywords = ["podcast"]
             
             for line in rest.split('\n'):
                 line = line.strip()
-                if line.upper().startswith("TITLE:"):
-                    title = line.split(":", 1)[1].strip()
-                elif line.upper().startswith("KEYWORDS:"):
+                if line.startswith('TITLE:'):
+                    title = line.replace('TITLE:', '').strip()
+                elif line.startswith('DESCRIPTION:'):
+                    description = line.replace('DESCRIPTION:', '').strip()
+                elif line.startswith('KEYWORDS:'):
                     kw_str = line.split(":", 1)[1].strip()
                     keywords = [k.strip() for k in kw_str.split(',')]
             
@@ -109,9 +113,10 @@ def _parse_highlights(text: str) -> list:
                 "start": start_time,
                 "end": end_time,
                 "title": title,
+                "description": description,
                 "keywords": keywords
             })
-        except Exception:
-            continue
+        except Exception as e:
+            log.warning(f"Failed to parse highlight block: {e}")
             
     return highlights

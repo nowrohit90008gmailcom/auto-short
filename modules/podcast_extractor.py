@@ -40,7 +40,7 @@ def extract_viral_highlights(transcript_words: list, total_clips: int = 3) -> li
     transcript_text = transcript_text[:30000] 
 
     system_prompt = """You are an elite TikTok/YouTube Shorts content curator focused on MAXIMUM WATCH TIME and VIRALITY.
-Your job is to read a podcast transcript and extract the most VIRAL, EXTRAORDINARY, CONTROVERSIAL, or FASCINATING segments.
+Your job is to read a podcast transcript and extract the most VIRAL, EXTRAORDINARY, CONTROVERSIAL, EXPLICIT, NAUGHTY, OR SEXUALLY-RELATED segments.
 
 CRITICAL RULES FOR VIRALITY:
 1. LENGTH: Every clip MUST be between 60 and 170 seconds long. Calculate the timestamps carefully. DO NOT give me a 15-second or 30-second clip. Long clips equal higher watch time.

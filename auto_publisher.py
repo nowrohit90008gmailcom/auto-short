@@ -11,6 +11,7 @@ from podcast_pipeline import run_podcast_pipeline
 from modules.channel_scraper import get_random_unprocessed_video, mark_as_processed
 from modules.facebook_publisher import upload_to_facebook_reels
 from modules.youtube_publisher import upload_to_youtube_shorts
+from modules.calendar import get_next_available_slot, update_calendar_slot
 
 log = get_logger("auto_publisher")
 IST = pytz.timezone('Asia/Kolkata')
@@ -30,47 +31,10 @@ def load_profiles() -> dict:
         return profiles
     for bot_dir in PROFILES_DIR.iterdir():
         if bot_dir.is_dir():
-            config_file = bot_dir / "config.json"
-            if config_file.exists():
-                try:
-                    with open(config_file, "r") as f:
-                        config = json.load(f)
-                        profiles[bot_dir.name] = {
-                            "path": bot_dir,
-                            "run_times": config.get("run_times", [])
-                        }
-                except Exception as e:
-                    log.error(f"Error loading {config_file}: {e}")
+            profiles[bot_dir.name] = {"path": bot_dir}
     return profiles
 
-def get_next_event(profiles: dict):
-    now_ist = datetime.datetime.now(IST)
-    events = []
-    
-    for bot_name, data in profiles.items():
-        for time_str in data["run_times"]:
-            hour, minute = map(int, time_str.split(":"))
-            
-            target = now_ist.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            if target <= now_ist:
-                # Target is tomorrow
-                target += datetime.timedelta(days=1)
-                
-            events.append((target, bot_name, time_str))
-            
-    if not events:
-        return None, None, None
-        
-    events.sort(key=lambda x: x[0])
-    return events[0] # (next_dt, bot_name, time_str)
-
-def get_seconds_until(target_dt: datetime.datetime) -> int:
-    now_ist = datetime.datetime.now(IST)
-    delta = (target_dt - now_ist).total_seconds()
-    return max(0, int(delta))
-
 def calculate_schedule_timestamps(target_dt: datetime.datetime):
-    # Drop at the exact target time (no offset)
     unix_ts = int(target_dt.timestamp())
     iso_str = target_dt.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     return [(unix_ts, iso_str)]
@@ -81,14 +45,14 @@ def run_profile(bot_name: str, bot_dir: Path, target_dt: datetime.datetime):
     channel_url = get_random_channel(bot_dir)
     if not channel_url:
         log.error(f"[{bot_name}] No channels found in channels.txt!")
-        return
+        return False
         
     history_file = bot_dir / "processed_history.json"
     video = get_random_unprocessed_video(channel_url, history_file)
     
     if not video:
         log.warning(f"[{bot_name}] No unprocessed videos found in {channel_url}.")
-        return
+        return False
         
     log.info(f"[{bot_name}] Picked video: {video['title']} ({video['url']})")
     
@@ -97,7 +61,7 @@ def run_profile(bot_name: str, bot_dir: Path, target_dt: datetime.datetime):
     if not generated_shorts:
         log.error(f"[{bot_name}] Pipeline failed to generate shorts.")
         mark_as_processed(video["id"], history_file)
-        return
+        return False
         
     env_vars = dotenv_values(bot_dir / ".env")
     page_id = env_vars.get("FB_PAGE_ID")
@@ -106,12 +70,13 @@ def run_profile(bot_name: str, bot_dir: Path, target_dt: datetime.datetime):
     
     schedules = calculate_schedule_timestamps(target_dt)
     
+    success = False
     for idx, short in enumerate(generated_shorts):
         if idx >= 1:
             break
             
         fb_unix, yt_iso = schedules[idx]
-        log.info(f"[{bot_name}] Scheduling Short {idx+1}: {short['title']}")
+        log.info(f"[{bot_name}] Scheduling Short for {target_dt.strftime('%Y-%m-%d %H:%M:%S')} IST...")
         
         fb_success = upload_to_facebook_reels(
             video_path=short["video_path"],
@@ -131,89 +96,62 @@ def run_profile(bot_name: str, bot_dir: Path, target_dt: datetime.datetime):
         )
         
         if fb_success and yt_success:
-            log.info(f"[{bot_name}] Successfully scheduled {short['title']}!")
+            log.info(f"[{bot_name}] Successfully scheduled {short['title']} for {target_dt}!")
+            success = True
         else:
-            log.error(f"[{bot_name}] Failed to fully schedule {short['title']}.")
+            log.error(f"[{bot_name}] Failed to upload/schedule {short['title']}")
             
-    mark_as_processed(video["id"], history_file)
-    log.info(f"=== {bot_name} RUN COMPLETE ===")
+        # Permanent cleanup of the massive media files to save 50GB SSD space
+        try:
+            if os.path.exists(short["video_path"]): os.remove(short["video_path"])
+            if os.path.exists(short.get("audio_path", "")): os.remove(short["audio_path"])
+        except:
+            pass
 
-def start_daemon(instant_run=False, specific_bot=None):
-    log.info("Starting Multi-Bot Event Scheduler (IST Timezone)...")
-    
-    first_loop = True
+    if success:
+        mark_as_processed(video["id"], history_file)
+        update_calendar_slot(bot_dir, target_dt)
+        return True
+    return False
+
+def start_daemon():
+    log.info("Starting Multi-Bot 75-Day Rolling Buffer Factory...")
     
     while True:
-        try:
-            profiles = load_profiles()
-            if not profiles:
-                log.error("No profiles found in workspace/profiles/")
-                time.sleep(300)
-                continue
-                
-            next_dt, bot_name, time_str = get_next_event(profiles)
-            
-            if not next_dt:
-                log.error("No run_times configured in any profile config.json")
-                time.sleep(300)
-                continue
-                
-            now_ist = datetime.datetime.now(IST)
-            sleep_sec = get_seconds_until(next_dt)
-            
-            is_grace_period = False
-            active_bot = None
-            active_dt = None
-            
-            for b_name, data in profiles.items():
-                for t_str in data["run_times"]:
-                    hour, minute = map(int, t_str.split(":"))
-                    past_target = now_ist.replace(hour=hour, minute=minute, second=0, microsecond=0)
-                    if past_target > now_ist:
-                        past_target -= datetime.timedelta(days=1)
-                    
-                    diff = (now_ist - past_target).total_seconds()
-                    if 0 <= diff < 1800:
-                        is_grace_period = True
-                        active_bot = b_name
-                        active_dt = past_target
-                        log.info(f"Within 30-min grace period for {b_name} ({t_str}). Starting immediately!")
-                        break
-                if is_grace_period:
-                    break
-            
-            if instant_run and first_loop:
-                if specific_bot:
-                    if specific_bot in profiles:
-                        log.info(f"INSTANT RUN TRIGGERED FOR {specific_bot.upper()}! Forcing processing right now...")
-                        run_profile(specific_bot, profiles[specific_bot]["path"], now_ist)
-                    else:
-                        log.error(f"Bot '{specific_bot}' not found in profiles!")
-                else:
-                    log.info("INSTANT RUN TRIGGERED! Forcing processing of all profiles sequentially right now...")
-                    for b_name, data in profiles.items():
-                        run_profile(b_name, data["path"], now_ist)
-                first_loop = False
-                continue
-                
-            if is_grace_period:
-                run_profile(active_bot, profiles[active_bot]["path"], active_dt)
-            else:
-                log.info(f"Sleeping for {sleep_sec} seconds until next event: {bot_name} at {next_dt.strftime('%Y-%m-%d %H:%M:%S')} IST...")
-                time.sleep(sleep_sec)
-                
-                run_profile(bot_name, profiles[bot_name]["path"], next_dt)
-                
-        except Exception as e:
-            log.error(f"Daemon encountered a fatal error: {e}")
-            log.info("Sleeping for 5 minutes before retrying...")
+        profiles = load_profiles()
+        if not profiles:
+            log.error("No profiles found in workspace/profiles/")
             time.sleep(300)
+            continue
+            
+        all_bots_full = True
+        
+        for bot_name, data in profiles.items():
+            bot_dir = data["path"]
+            
+            target_dt = get_next_available_slot(bot_dir, videos_per_day=2)
+            
+            now = datetime.datetime.now(IST)
+            days_in_future = (target_dt - now).days
+            
+            if days_in_future >= 74:
+                log.info(f"[{bot_name}] Queue is full! (Scheduled {days_in_future} days in advance). Sleeping this bot.")
+                continue
+                
+            all_bots_full = False
+            log.info(f"[{bot_name}] Slot available for {target_dt}. Starting generation...")
+            
+            try:
+                run_profile(bot_name, bot_dir, target_dt)
+            except Exception as e:
+                log.error(f"[{bot_name}] Encountered fatal error: {e}")
+                
+            # Sleep a tiny bit between bots to avoid API spamming
+            time.sleep(10)
+            
+        if all_bots_full:
+            log.info("ALL BOTS ARE MAXED OUT AT 75 DAYS! Factory sleeping for 12 hours...")
+            time.sleep(43200)
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--instant", action="store_true", help="Force an instant run of all bots bypassing schedule")
-    parser.add_argument("--bot", type=str, help="Specify a single bot to run instantly (e.g. bot3)", default=None)
-    args = parser.parse_args()
-    
-    start_daemon(instant_run=args.instant, specific_bot=args.bot)
+    start_daemon()

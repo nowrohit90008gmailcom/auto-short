@@ -38,8 +38,8 @@ def extract_viral_highlights(transcript_words: list, total_clips: int = 3) -> li
         blocks.append(f"[{mm:02d}:{ss:02d}] {' '.join(current_block)}")
 
     transcript_text = "\n".join(blocks)
-    # Truncate to avoid context limits if podcast is huge
-    transcript_text = transcript_text[:30000] 
+    # Truncate to avoid context limits if podcast is huge (18000 chars is safe for 8192 tokens)
+    transcript_text = transcript_text[:18000] 
 
     system_prompt = """You are an elite TikTok/YouTube Shorts content curator focused on MAXIMUM WATCH TIME and VIRALITY.
 Your job is to read a podcast transcript and extract the most VIRAL, EXTRAORDINARY, CONTROVERSIAL, EXPLICIT, NAUGHTY, OR SEXUALLY-RELATED segments.
@@ -114,7 +114,8 @@ KEYWORDS: keyword1, keyword2, keyword3
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                "temperature": 0.7
+                "temperature": 0.7,
+                "max_tokens": 2000
             }
             try:
                 r = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=60)

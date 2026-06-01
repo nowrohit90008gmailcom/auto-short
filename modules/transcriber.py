@@ -217,22 +217,33 @@ def _transcribe_chunk_deepgram(audio_path: str) -> dict:
         raise RuntimeError("Deepgram API returned an invalid structure.")
 
 
-def _transcribe_with_retry(audio_path: str, max_retries: int = 3) -> dict:
-    """Transcribe with exponential backoff retry for transient errors."""
+def _transcribe_with_retry(audio_path: str) -> dict:
+    """
+    Transcription Fallback Chain:
+    1. Try Groq API (Free)
+    2. Try Deepgram API (User Provided Key)
+    3. Fallback to Local CPU Whisper
+    """
     import time
-    for attempt in range(max_retries):
-        try:
-            # We will use Deepgram directly now!
-            return _transcribe_chunk_deepgram(audio_path)
-        except Exception as e:
-            if attempt == max_retries - 1:
-                log.warning(f"Deepgram failed ({e}). Falling back to Local Whisper...")
-                return _transcribe_chunk_local(audio_path)
-            
-            wait = 5 * (2 ** attempt)  # 5s, 10s, 20s
-            log.warning(f"Transcription attempt {attempt + 1} failed: {e}, "
-                        f"retrying in {wait}s...")
-            time.sleep(wait)
+    
+    # Attempt 1: Groq
+    log.info("Attempting primary transcription via Groq API...")
+    try:
+        # Check if we still have the original Groq function inside this file
+        # Wait, I need to make sure _transcribe_chunk_groq is still in the file!
+        return _transcribe_chunk_groq(audio_path)
+    except Exception as e:
+        log.warning(f"Groq transcription failed ({e}). Moving to Deepgram...")
+        
+    # Attempt 2: Deepgram
+    time.sleep(2) # Brief pause before second attempt
+    try:
+        return _transcribe_chunk_deepgram(audio_path)
+    except Exception as e:
+        log.warning(f"Deepgram transcription failed ({e}). Falling back to Local Whisper...")
+        
+    # Attempt 3: Local Whisper (CPU)
+    return _transcribe_chunk_local(audio_path)
 
 
 def transcribe_full_movie(video_path: str, movie_name: str) -> dict:

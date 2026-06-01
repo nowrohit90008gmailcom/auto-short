@@ -42,7 +42,7 @@ def _setup_assets():
     
     # Download Gameplays
     existing_gameplays = list(GAMEPLAYS_DIR.glob("*.mp4"))
-    if len(existing_gameplays) < len(GAMEPLAY_URLS):
+    if len(existing_gameplays) == 0:
         log.info("Downloading diverse gameplay videos for split-screen...")
         for i, url in enumerate(GAMEPLAY_URLS):
             target_file = GAMEPLAYS_DIR / f"gameplay_{i}.mp4"
@@ -52,7 +52,7 @@ def _setup_assets():
                 
     # Download Music
     existing_music = list(MUSIC_DIR.glob("*.mp3"))
-    if len(existing_music) < len(MUSIC_URLS):
+    if len(existing_music) == 0:
         log.info("Downloading diverse background music tracks...")
         for i, url in enumerate(MUSIC_URLS):
             target_file = MUSIC_DIR / f"bgm_{i}.mp3"

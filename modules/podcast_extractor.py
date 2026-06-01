@@ -60,78 +60,125 @@ KEYWORDS: keyword1, keyword2, keyword3
 
     user_prompt = f"Find the {total_clips} most viral, mind-blowing, or controversial segments in this transcript:\n\n{transcript_text}"
 
-    # --- Triple Fallback Chain for Text Extraction ---
+    # --- The Ultimate Enterprise Fallback Chain ---
     import os
     import time
-    
-    # 1. DuckDuckGo AI (Free, Stable)
-    try:
-        log.info(f"Attempt 1: Asking DuckDuckGo AI (Claude-3-Haiku) to extract {total_clips} viral highlights...")
-        from duckduckgo_search import DDGS
-        ddgs = DDGS()
-        combined_prompt = f"{system_prompt}\n\n{user_prompt}"
-        output = ddgs.chat(combined_prompt, model="claude-3-haiku")
-        log.info(f"DuckDuckGo highlight extraction complete:\n{output}")
-        return _parse_highlights(output)
-    except Exception as e:
-        log.warning(f"DuckDuckGo failed: {e}")
-        
-    # 2. g4f (Free, Hacky Backup)
-    try:
-        log.info(f"Attempt 2: Asking ChatGPT via g4f fallback...")
-        from g4f.client import Client as G4FClient
-        g4f_client = G4FClient()
-        response = g4f_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-        )
-        output = response.choices[0].message.content
-        log.info(f"g4f extraction complete:\n{output}")
-        return _parse_highlights(output)
-    except Exception as e:
-        log.warning(f"g4f fallback failed: {e}")
-        
-    # 3. Groq API (Official, Rate-Limited)
-    log.info(f"Attempt 3: Asking Groq (Llama 3 8B) API as final fallback...")
     import requests
-    GROQ_KEYS = [k.strip() for k in os.getenv("GROQ_API_KEYS", "").split(",") if k.strip()]
     
-    if not GROQ_KEYS:
-        log.error("CRITICAL ERROR: YOU DO NOT HAVE A '.env' FILE WITH 'GROQ_API_KEYS' ON YOUR VPS! GROQ API SKIPPED.")
-    else:
-        for attempt in range(len(GROQ_KEYS)):
-            groq_key = GROQ_KEYS[attempt % len(GROQ_KEYS)]
-            headers = {
-                "Authorization": f"Bearer {groq_key}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "model": "llama-3.1-8b-instant",
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                "temperature": 0.7,
-                "max_tokens": 2000
-            }
+    # 1. Define the ultimate list of free providers (in order of preference)
+    providers = [
+        {
+            "name": "Gemini (Google)",
+            "type": "gemini",
+            "url": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
+            "keys_env": "GEMINI_API_KEY",
+            "model_env": "GEMINI_MODEL",
+            "default_model": "gemini-2.0-flash-lite"
+        },
+        {
+            "name": "Cerebras",
+            "type": "openai",
+            "url": "https://api.cerebras.ai/v1/chat/completions",
+            "keys_env": "CEREBRAS_API_KEYS",
+            "model_env": "CEREBRAS_MODEL",
+            "default_model": "llama3.1-70b"
+        },
+        {
+            "name": "Groq",
+            "type": "openai",
+            "url": "https://api.groq.com/openai/v1/chat/completions",
+            "keys_env": "GROQ_API_KEYS",
+            "model_env": "GROQ_MODEL",
+            "default_model": "llama-3.3-70b-versatile"
+        },
+        {
+            "name": "SambaNova",
+            "type": "openai",
+            "url": "https://api.sambanova.ai/v1/chat/completions",
+            "keys_env": "SAMBANOVA_API_KEY",
+            "model_env": "SAMBANOVA_MODEL",
+            "default_model": "Meta-Llama-3.3-70B-Instruct"
+        },
+        {
+            "name": "OpenRouter",
+            "type": "openai",
+            "url": "https://openrouter.ai/api/v1/chat/completions",
+            "keys_env": "OPENROUTER_API_KEY",
+            "model_env": "OPENROUTER_MODEL",
+            "default_model": "openrouter/auto"
+        }
+    ]
+    
+    for provider in providers:
+        keys_str = os.getenv(provider["keys_env"], "")
+        keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+        if not keys:
+            log.warning(f"Skipping {provider['name']} - No keys found in {provider['keys_env']}")
+            continue
+            
+        model = os.getenv(provider["model_env"], provider["default_model"])
+        
+        for key_idx, key in enumerate(keys):
+            log.info(f"Attempting {provider['name']} extraction using model '{model}' (Key {key_idx+1})...")
+            
             try:
-                r = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=60)
-                if r.status_code == 429:
-                    log.warning(f"Groq text extraction rate limited on key {attempt+1}. Trying next key...")
-                    continue
-                r.raise_for_status()
-                output = r.json()["choices"][0]["message"]["content"]
-                log.info(f"Groq highlight extraction complete:\n{output}")
-                return _parse_highlights(output)
+                if provider["type"] == "gemini":
+                    # Gemini REST API Format
+                    url = provider["url"].format(model=model, key=key)
+                    headers = {"Content-Type": "application/json"}
+                    payload = {
+                        "contents": [{"parts": [{"text": user_prompt}]}],
+                        "systemInstruction": {"parts": [{"text": system_prompt}]}
+                    }
+                    r = requests.post(url, headers=headers, json=payload, timeout=60)
+                    if r.status_code == 429:
+                        log.warning(f"{provider['name']} rate limited. Trying next...")
+                        continue
+                    r.raise_for_status()
+                    
+                    # Extract Gemini Response
+                    output = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    log.info(f"{provider['name']} highlight extraction complete:\n{output}")
+                    return _parse_highlights(output)
+                    
+                elif provider["type"] == "openai":
+                    # OpenAI Compatible REST API Format
+                    headers = {
+                        "Authorization": f"Bearer {key}",
+                        "Content-Type": "application/json"
+                    }
+                    # OpenRouter specific header
+                    if provider["name"] == "OpenRouter":
+                        headers["HTTP-Referer"] = "https://github.com/nowrohit90008gmailcom/auto-short"
+                        
+                    payload = {
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        "temperature": 0.7
+                    }
+                    r = requests.post(provider["url"], headers=headers, json=payload, timeout=60)
+                    if r.status_code == 429:
+                        log.warning(f"{provider['name']} rate limited. Trying next...")
+                        continue
+                    r.raise_for_status()
+                    
+                    # Extract OpenAI Response
+                    output = r.json()["choices"][0]["message"]["content"]
+                    log.info(f"{provider['name']} highlight extraction complete:\n{output}")
+                    return _parse_highlights(output)
+                    
             except requests.exceptions.RequestException as e:
                 error_details = e.response.text if e.response is not None else str(e)
-                log.error(f"Groq extraction attempt {attempt+1} failed: {e} - Details: {error_details}")
+                log.error(f"{provider['name']} failed: {e} - Details: {error_details}")
                 time.sleep(1)
-                
-    log.error("All text extraction fallbacks (DDG -> g4f -> Groq) completely failed.")
+            except Exception as e:
+                log.error(f"{provider['name']} generic failure: {e}")
+                time.sleep(1)
+
+    log.error("CRITICAL: Every single provider in the Ultimate Fallback Chain failed!")
     return []
 
 def _parse_highlights(text: str) -> list:

@@ -48,7 +48,7 @@ def _setup_assets():
             target_file = GAMEPLAYS_DIR / f"gameplay_{i}.mp4"
             if not target_file.exists():
                 cmd = [sys.executable, "-m", "yt_dlp", "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4", "-o", str(target_file), url]
-                subprocess.run(cmd, capture_output=True)
+                subprocess.run(cmd)
                 
     # Download Music
     existing_music = list(MUSIC_DIR.glob("*.mp3"))
@@ -58,7 +58,7 @@ def _setup_assets():
             target_file = MUSIC_DIR / f"bgm_{i}.mp3"
             if not target_file.exists():
                 cmd = [sys.executable, "-m", "yt_dlp", "-x", "--audio-format", "mp3", "-o", str(target_file), url]
-                subprocess.run(cmd, capture_output=True)
+                subprocess.run(cmd)
 
 def run_podcast_pipeline(url: str, title: str):
     log.info(f"Starting Transformative Podcast Pipeline for: {title}")

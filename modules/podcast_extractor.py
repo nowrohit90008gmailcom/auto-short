@@ -81,7 +81,7 @@ KEYWORDS: keyword1, keyword2, keyword3
             "url": "https://api.cerebras.ai/v1/chat/completions",
             "keys_env": "CEREBRAS_API_KEYS",
             "model_env": "CEREBRAS_MODEL",
-            "default_model": "llama3.1-70b"
+            "default_model": "llama-3.3-70b"
         },
         {
             "name": "Groq",
@@ -89,7 +89,7 @@ KEYWORDS: keyword1, keyword2, keyword3
             "url": "https://api.groq.com/openai/v1/chat/completions",
             "keys_env": "GROQ_API_KEYS",
             "model_env": "GROQ_MODEL",
-            "default_model": "llama-3.3-70b-versatile"
+            "default_model": "meta-llama/llama-4-maverick-17b-128e-instruct"
         },
         {
             "name": "SambaNova",

@@ -58,23 +58,52 @@ KEYWORDS: keyword1, keyword2, keyword3
 
     user_prompt = f"Find the {total_clips} most viral, mind-blowing, or controversial segments in this transcript:\n\n{transcript_text}"
 
-    client = Client()
-    log.info(f"Asking ChatGPT to extract {total_clips} viral highlights...")
+    # Use Groq API with Llama 3 instead of g4f
+    import os
+    import requests
+    import time
     
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
+    GROQ_KEYS = [k.strip() for k in os.getenv("GROQ_API_KEYS", "").split(",") if k.strip()]
+    if not GROQ_KEYS:
+        log.error("No GROQ_API_KEYS found in environment!")
+        return []
+        
+    log.info(f"Asking Groq (Llama 3 8B) to extract {total_clips} viral highlights...")
+    
+    for attempt in range(len(GROQ_KEYS)):
+        groq_key = GROQ_KEYS[attempt % len(GROQ_KEYS)]
+        
+        headers = {
+            "Authorization": f"Bearer {groq_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": "llama3-8b-8192",
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
-            ]
-        )
-        output = response.choices[0].message.content
-        log.info(f"ChatGPT highlight extraction complete:\n{output}")
-        return _parse_highlights(output)
-    except Exception as e:
-        log.error(f"Highlight extraction failed: {e}")
-        return []
+            ],
+            "temperature": 0.7
+        }
+        
+        try:
+            r = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=60)
+            if r.status_code == 429:
+                log.warning(f"Groq text extraction rate limited on key {attempt+1}. Trying next key...")
+                continue
+                
+            r.raise_for_status()
+            output = r.json()["choices"][0]["message"]["content"]
+            log.info(f"Groq highlight extraction complete:\n{output}")
+            return _parse_highlights(output)
+            
+        except Exception as e:
+            log.error(f"Groq extraction attempt {attempt+1} failed: {e}")
+            time.sleep(1)
+            
+    log.error("All Groq keys failed for highlight extraction.")
+    return []
 
 def _parse_highlights(text: str) -> list:
     highlights = []

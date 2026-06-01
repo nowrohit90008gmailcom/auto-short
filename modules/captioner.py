@@ -17,8 +17,8 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
-Style: Active,Arial Black,72,&H0080FFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,2,40,40,180,1
-Style: Inactive,Arial Black,60,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,2,2,40,40,180,1
+Style: Active,Montserrat,76,&H00FFFFFF,&H000000FF,&H000000FF,&H80000000,-1,-1,0,0,100,100,2,0,1,6,2,5,40,40,0,1
+Style: Inactive,Montserrat,64,&H00FFFFFF,&H000000FF,&H000000FF,&H80000000,-1,-1,0,0,100,100,2,0,1,3,2,5,40,40,0,1
 
 [Events]
 Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
@@ -80,15 +80,15 @@ def generate_ass(word_timestamps: list, output_path: str,
             # ASS override: {\c&H0080FFFF&} for yellow, {\c&HFFFFFF&} for white
             parts = []
             for j, w in enumerate(group):
-                word_text = w["word"].strip()
+                word_text = w["word"].strip().upper()
                 if not word_text:
                     continue
                 if j == active_idx:
-                    # Active word — yellow, larger
+                    # Active word — slightly larger
                     parts.append(
-                        r"{\c&H00FFFF&\fscx110\fscy110\b1}" +
-                        word_text.upper() +
-                        r"{\c&HFFFFFF&\fscx100\fscy100\b1}"
+                        r"{\fscx115\fscy115}" +
+                        word_text +
+                        r"{\fscx100\fscy100}"
                     )
                 else:
                     parts.append(word_text)

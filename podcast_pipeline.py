@@ -17,30 +17,53 @@ WORKSPACE = Path("workspace")
 PODCASTS_DIR = WORKSPACE / "podcasts"
 OUTPUT_DIR = WORKSPACE / "podcast_shorts"
 ASSETS_DIR = WORKSPACE / "assets"
-GAMEPLAY_FILE = ASSETS_DIR / "gameplay.mp4"
-BACKGROUND_MUSIC_FILE = ASSETS_DIR / "bgm.mp3"
+GAMEPLAYS_DIR = ASSETS_DIR / "gameplays"
+MUSIC_DIR = ASSETS_DIR / "music"
+
+GAMEPLAY_URLS = [
+    "https://www.youtube.com/watch?v=n_Dv4JMiwK8",  # GTA V Parkour
+    "https://www.youtube.com/watch?v=2X9QNgGWtgI",  # Subway Surfers
+    "https://www.youtube.com/watch?v=intRX7BRA90",  # Minecraft Parkour
+]
+
+MUSIC_URLS = [
+    "https://www.youtube.com/watch?v=5Eqb_-j3FDA",  # Lofi chill
+    "https://www.youtube.com/watch?v=1tV-a7K6aXU",  # Phonk drift
+    "https://www.youtube.com/watch?v=mGz4hI5pAQQ",  # Chillstep
+]
 
 for d in [PODCASTS_DIR, OUTPUT_DIR, ASSETS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
-def _ensure_assets():
-    """Downloads a royalty-free gameplay video and background music if we don't have them."""
-    if not GAMEPLAY_FILE.exists():
-        log.info("Downloading base gameplay video for split-screen...")
-        url = "https://www.youtube.com/watch?v=n_Dv4JMiwK8" 
-        cmd = [sys.executable, "-m", "yt_dlp", "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4", "-o", str(GAMEPLAY_FILE), url]
-        subprocess.run(cmd, check=True)
-        
-    if not BACKGROUND_MUSIC_FILE.exists():
-        log.info("Downloading viral background music...")
-        bgm_url = "https://youtu.be/KgayxOF4Y7E"
-        cmd = [sys.executable, "-m", "yt_dlp", "-x", "--audio-format", "mp3", "-o", str(BACKGROUND_MUSIC_FILE), bgm_url]
-        subprocess.run(cmd, check=True)
+def _setup_assets():
+    """Downloads a royalty-free gameplay videos and background music if we don't have them."""
+    GAMEPLAYS_DIR.mkdir(parents=True, exist_ok=True)
+    MUSIC_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Download Gameplays
+    existing_gameplays = list(GAMEPLAYS_DIR.glob("*.mp4"))
+    if len(existing_gameplays) < len(GAMEPLAY_URLS):
+        log.info("Downloading diverse gameplay videos for split-screen...")
+        for i, url in enumerate(GAMEPLAY_URLS):
+            target_file = GAMEPLAYS_DIR / f"gameplay_{i}.mp4"
+            if not target_file.exists():
+                cmd = [sys.executable, "-m", "yt_dlp", "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4", "-o", str(target_file), url]
+                subprocess.run(cmd, capture_output=True)
+                
+    # Download Music
+    existing_music = list(MUSIC_DIR.glob("*.mp3"))
+    if len(existing_music) < len(MUSIC_URLS):
+        log.info("Downloading diverse background music tracks...")
+        for i, url in enumerate(MUSIC_URLS):
+            target_file = MUSIC_DIR / f"bgm_{i}.mp3"
+            if not target_file.exists():
+                cmd = [sys.executable, "-m", "yt_dlp", "-x", "--audio-format", "mp3", "-o", str(target_file), url]
+                subprocess.run(cmd, capture_output=True)
 
 def run_podcast_pipeline(url: str, title: str):
     log.info(f"Starting Transformative Podcast Pipeline for: {title}")
     
-    _ensure_assets()
+    _setup_assets()
     
     # 1. Download
     download_res = download(url, title)
@@ -96,8 +119,54 @@ def run_podcast_pipeline(url: str, title: str):
         clip_path = str(short_dir / "podcast_clip.mp4")
         broll_path = str(short_dir / "broll.mp4")
         captions_path = str(short_dir / "captions.ass")
+        intro_audio_path = str(short_dir / "intro_audio.mp3")
+        midro_audio_path = str(short_dir / "midro_audio.mp3")
+        outro_audio_path = str(short_dir / "outro_audio.mp3")
         final_path = str(short_dir / f"final_short_{i}.mp4")
         
+        # --- Deepgram AI Narrator (Holy Trinity) ---
+        deepgram_key = os.getenv("DEEPGRAM_API_KEY", "")
+        intro_text = highlight.get("intro", f"You won't believe what happened... {highlight['title']}!")
+        midro_text = highlight.get("midro", "Hold on, it gets even crazier...")
+        outro_text = highlight.get("outro", "Drop a follow for daily viral podcasts!")
+        
+        generated_trinity = False
+        if deepgram_key:
+            try:
+                import requests
+                headers = {
+                    "Authorization": f"Token {deepgram_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                # Generate Intro
+                r1 = requests.post("https://api.deepgram.com/v1/speak?model=aura-angus-en", headers=headers, json={"text": intro_text}, timeout=30)
+                if r1.status_code == 200:
+                    with open(intro_audio_path, "wb") as f: f.write(r1.content)
+                
+                # Generate Midro
+                r2 = requests.post("https://api.deepgram.com/v1/speak?model=aura-angus-en", headers=headers, json={"text": midro_text}, timeout=30)
+                if r2.status_code == 200:
+                    with open(midro_audio_path, "wb") as f: f.write(r2.content)
+                    
+                # Generate Outro
+                r3 = requests.post("https://api.deepgram.com/v1/speak?model=aura-angus-en", headers=headers, json={"text": outro_text}, timeout=30)
+                if r3.status_code == 200:
+                    with open(outro_audio_path, "wb") as f: f.write(r3.content)
+                    
+                if r1.status_code == 200 and r2.status_code == 200 and r3.status_code == 200:
+                    log.info(f"Generated Deepgram AI Holy Trinity (Angus)")
+                    generated_trinity = True
+                else:
+                    log.warning("Deepgram TTS failed for one or more files.")
+            except Exception as e:
+                log.warning(f"Deepgram TTS error: {e}")
+                
+        if not generated_trinity:
+            intro_audio_path = None
+            midro_audio_path = None
+            outro_audio_path = None
+            
         start_t = highlight["start"]
         end_t = highlight["end"]
         dur = end_t - start_t
@@ -119,14 +188,25 @@ def run_podcast_pipeline(url: str, title: str):
         
         # 7. Assemble Transformative Video
         b_vid = broll_path if has_broll else None
+        
+        # Randomize Assets
+        import random
+        gameplays = list(GAMEPLAYS_DIR.glob("*.mp4"))
+        music_tracks = list(MUSIC_DIR.glob("*.mp3"))
+        selected_gameplay = str(random.choice(gameplays)) if gameplays else None
+        selected_music = str(random.choice(music_tracks)) if music_tracks else None
+        
         success = assemble_transformative_short(
             podcast_clip=clip_path,
-            gameplay_video=str(GAMEPLAY_FILE),
-            bgm_audio=str(BACKGROUND_MUSIC_FILE),
+            gameplay_video=selected_gameplay,
+            bgm_audio=selected_music,
             broll_video=b_vid,
             captions_ass=captions_path,
             output_path=final_path,
-            title_hook=highlight["title"]
+            title_hook=highlight["title"],
+            intro_audio_path=intro_audio_path,
+            midro_audio_path=midro_audio_path,
+            outro_audio_path=outro_audio_path
         )
         
         if success:

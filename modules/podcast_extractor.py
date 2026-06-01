@@ -50,12 +50,19 @@ CRITICAL RULES FOR VIRALITY:
 3. CLICKBAIT TITLE: Write an extreme, curiosity-driven title optimized for the YouTube Shorts algorithm (e.g., "He Revealed The TRUTH About..." or "The CRAZIEST Story Ever Told...").
 4. DESCRIPTION: Write a highly engaging, SEO-optimized YouTube description with viral hashtags.
 5. KEYWORDS: Provide 2-3 single-word visual keywords for B-roll (e.g. "money", "rocket", "brain", "scary").
+6. NARRATOR SCRIPTS: Write 3 extremely short (1 sentence maximum) scripts for an AI Voiceover Narrator based on the context of the clip:
+   - INTRO: A massive, context-aware hook to introduce the clip (e.g., "You won't believe what X just admitted about Y...").
+   - MIDRO: A pattern interrupt halfway through (e.g., "Hold on, this next part is actually insane...").
+   - OUTRO: A call to action related to the clip (e.g., "Do you agree with him? Subscribe for more!").
 
 FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
 [MM:SS-MM:SS]
 TITLE: (Catchy viral title)
 DESCRIPTION: (Viral description with #hashtags)
 KEYWORDS: keyword1, keyword2, keyword3
+INTRO: (Narrator Intro)
+MIDRO: (Narrator Midro)
+OUTRO: (Narrator Outro)
 """
 
     user_prompt = f"Find the {total_clips} most viral, mind-blowing, or controversial segments in this transcript:\n\n{transcript_text}"
@@ -203,6 +210,9 @@ def _parse_highlights(text: str) -> list:
             title = "Viral Clip"
             description = "Check out this crazy moment! #shorts #viral"
             keywords = ["podcast"]
+            intro_script = "You won't believe what happened in this clip!"
+            midro_script = "Wait, it gets even crazier..."
+            outro_script = "Subscribe for more viral podcasts!"
             
             for line in rest.split('\n'):
                 line = line.strip()
@@ -213,13 +223,22 @@ def _parse_highlights(text: str) -> list:
                 elif line.startswith('KEYWORDS:'):
                     kw_str = line.split(":", 1)[1].strip()
                     keywords = [k.strip() for k in kw_str.split(',')]
+                elif line.startswith('INTRO:'):
+                    intro_script = line.replace('INTRO:', '').strip()
+                elif line.startswith('MIDRO:'):
+                    midro_script = line.replace('MIDRO:', '').strip()
+                elif line.startswith('OUTRO:'):
+                    outro_script = line.replace('OUTRO:', '').strip()
             
             highlights.append({
                 "start": start_time,
                 "end": end_time,
                 "title": title,
                 "description": description,
-                "keywords": keywords
+                "keywords": keywords,
+                "intro": intro_script,
+                "midro": midro_script,
+                "outro": outro_script
             })
         except Exception as e:
             log.warning(f"Failed to parse highlight block: {e}")

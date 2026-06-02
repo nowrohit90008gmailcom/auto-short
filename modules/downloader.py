@@ -56,7 +56,7 @@ def download(url: str, movie_name: str) -> dict:
     
     # yt-dlp options
     ydl_opts = {
-        "format": "bv*[height<=720]+ba/b[height<=720]/bv*+ba/b",
+        "format": "bestvideo+bestaudio/best",
         "merge_output_format": "mp4",
         "outtmpl": output_template,
         "noplaylist": True,

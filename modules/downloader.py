@@ -62,9 +62,9 @@ def download(url: str, movie_name: str) -> dict:
         "noplaylist": True,
         "retries": 3,
         "socket_timeout": 30,
-        "quiet": False,
         "no_warnings": False,
         "ignoreerrors": False,
+        "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
     }
     
     cookies_file = WORKSPACE / "cookies.txt"

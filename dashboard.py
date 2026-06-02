@@ -2,7 +2,7 @@ import os
 import json
 import time
 from pathlib import Path
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 
 app = Flask(__name__)
 
@@ -104,6 +104,21 @@ def status():
         "logs": logs,
         "errors": error_logs
     })
+
+@app.route("/api/cookies", methods=["POST"])
+def update_cookies():
+    data = request.json
+    cookies_content = data.get("cookies", "")
+    if not cookies_content.strip():
+        return jsonify({"success": False, "error": "Empty cookies content provided."})
+    
+    try:
+        cookies_file = WORKSPACE / "cookies.txt"
+        with open(cookies_file, "w", encoding="utf-8") as f:
+            f.write(cookies_content)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
 if __name__ == "__main__":
     # Bind to 0.0.0.0 to allow external access from phone

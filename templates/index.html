@@ -226,6 +226,16 @@
             <!-- Bots will be injected here by JS -->
         </div>
 
+        <div class="card" style="margin-bottom: 2rem; text-align: left;">
+            <h3 style="margin-bottom: 0.5rem; color: #a855f7;">Bypass YouTube Anti-Bot</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem; margin-top: 0;">Paste your exported cookies.txt content here to instantly bypass YouTube's datacenter blocks.</p>
+            <textarea id="cookie-input" style="width: 100%; height: 80px; background: rgba(0,0,0,0.5); color: white; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; font-family: monospace; font-size: 0.75rem; box-sizing: border-box;" placeholder="# Netscape HTTP Cookie File..."></textarea>
+            <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+                <button onclick="saveCookies()" style="background: #a855f7; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: transform 0.2s;">Save Cookies</button>
+            </div>
+            <div id="cookie-msg" style="font-size: 0.85rem; margin-top: 10px; display: none;"></div>
+        </div>
+
         <!-- Error Panel -->
         <div class="terminal-container" style="border-color: rgba(239, 68, 68, 0.4); margin-bottom: 2rem; display: none;" id="error-panel">
             <div class="terminal-header" style="border-bottom-color: rgba(239, 68, 68, 0.4);">
@@ -324,15 +334,42 @@
             let displayLogs = rawLogs;
             
             if (filter !== "all") {
-                const lines = rawLogs.split('\\n');
-                // Extremely simple filter: keep lines with the bot name, or try to keep blocks
-                displayLogs = lines.filter(line => line.toLowerCase().includes(filter)).join('\\n');
+                const lines = rawLogs.split('\n');
+                displayLogs = lines.filter(line => line.toLowerCase().includes(filter)).join('\n');
                 if (!displayLogs) displayLogs = "No specific logs found for " + filter.toUpperCase() + " in the recent output window...";
             }
             
             if (terminal.textContent !== displayLogs) {
                 terminal.textContent = displayLogs;
-                terminal.scrollTop = terminal.scrollHeight; // Auto-scroll to bottom
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+        }
+        
+        async function saveCookies() {
+            const content = document.getElementById('cookie-input').value;
+            const msgEl = document.getElementById('cookie-msg');
+            msgEl.style.display = 'block';
+            msgEl.style.color = 'var(--text-muted)';
+            msgEl.textContent = 'Saving...';
+            
+            try {
+                const res = await fetch('/api/cookies', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ cookies: content })
+                });
+                const data = await res.json();
+                if(data.success) {
+                    msgEl.style.color = '#10b981';
+                    msgEl.textContent = 'Cookies saved successfully! The bot will use them on the next download.';
+                    document.getElementById('cookie-input').value = '';
+                } else {
+                    msgEl.style.color = '#ef4444';
+                    msgEl.textContent = 'Failed to save: ' + data.error;
+                }
+            } catch(e) {
+                msgEl.style.color = '#ef4444';
+                msgEl.textContent = 'Network error saving cookies.';
             }
         }
         

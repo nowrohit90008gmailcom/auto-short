@@ -20,11 +20,7 @@ ASSETS_DIR = WORKSPACE / "assets"
 GAMEPLAYS_DIR = ASSETS_DIR / "gameplays"
 MUSIC_DIR = ASSETS_DIR / "music"
 
-GAMEPLAY_URLS = [
-    "https://www.youtube.com/watch?v=n_Dv4JMiwK8",  # GTA V Parkour
-    "https://www.youtube.com/watch?v=2X9QNgGWtgI",  # Subway Surfers
-    "https://www.youtube.com/watch?v=intRX7BRA90",  # Minecraft Parkour
-]
+GAMEPLAY_PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLdxE72LlkFodEb4jBP8ewH1-qfUcneR7Z"
 
 MUSIC_URLS = [
     "https://www.youtube.com/watch?v=5Eqb_-j3FDA",  # Lofi chill
@@ -46,12 +42,10 @@ def _setup_assets():
     # Download Gameplays
     existing_gameplays = list(GAMEPLAYS_DIR.glob("*.mp4"))
     if len(existing_gameplays) == 0:
-        log.info("Downloading diverse gameplay videos for split-screen...")
-        for i, url in enumerate(GAMEPLAY_URLS):
-            target_file = GAMEPLAYS_DIR / f"gameplay_{i}.mp4"
-            if not target_file.exists():
-                cmd = [sys.executable, "-m", "yt_dlp"] + cookies_args + ["-f", "bv*+ba/b", "--merge-output-format", "mp4", "-o", str(target_file), url]
-                subprocess.run(cmd)
+        log.info("Downloading diverse gameplay videos for split-screen from playlist...")
+        target_template = str(GAMEPLAYS_DIR / "gameplay_%(autonumber)s.mp4")
+        cmd = [sys.executable, "-m", "yt_dlp"] + cookies_args + ["-f", "bv*+ba/b", "--merge-output-format", "mp4", "--playlist-end", "50", "-o", target_template, GAMEPLAY_PLAYLIST_URL]
+        subprocess.run(cmd)
                 
     # Download Music
     existing_music = list(MUSIC_DIR.glob("*.mp3"))

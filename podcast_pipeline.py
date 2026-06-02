@@ -214,6 +214,14 @@ def run_podcast_pipeline(url: str, title: str):
                 "description": highlight.get("description", f"Check out this crazy moment from {title}! #shorts #podcast #viral")
             })
             
+    # Auto-delete massive raw podcast video to save disk space
+    try:
+        if os.path.exists(video_path):
+            os.remove(video_path)
+            log.info(f"Auto-deleted raw podcast cache to save space: {video_path}")
+    except Exception as e:
+        log.warning(f"Failed to auto-delete raw podcast video: {e}")
+            
     return generated_shorts
 
 if __name__ == "__main__":

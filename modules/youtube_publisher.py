@@ -115,5 +115,8 @@ def upload_to_youtube_shorts(video_path: str, title: str, description: str, cred
         return True
         
     except Exception as e:
-        log.error(f"YouTube Upload Step failed: {e}")
+        error_details = ""
+        if hasattr(e, "content"):
+            error_details = e.content
+        log.error(f"YouTube Upload Step failed: {e} - Details: {error_details}")
         return False

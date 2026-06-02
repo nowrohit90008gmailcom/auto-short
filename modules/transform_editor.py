@@ -17,18 +17,18 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
     except Exception:
         dur = 60.0
         
+    # Scale duration because of 1.23x speedup
+    sped_dur = dur / 1.23
+    
     gp_start = 0
     if gameplay_video and os.path.exists(gameplay_video):
         try:
             probe = subprocess.run(["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", gameplay_video], capture_output=True, text=True)
             gp_dur = float(json.loads(probe.stdout)["format"]["duration"])
-            if gp_dur > dur + 10:
-                gp_start = random.uniform(0, gp_dur - dur - 2)
+            if gp_dur > sped_dur + 10:
+                gp_start = random.uniform(0, gp_dur - sped_dur - 2)
         except Exception:
             pass
-
-    # Scale duration because of 1.23x speedup
-    sped_dur = dur / 1.23
     
     # STEP 1: Generate the Main Podcast Short (with Cinematic Filter, Zoom, Voice Changer, Captions)
     work_dir = Path(output_path).parent

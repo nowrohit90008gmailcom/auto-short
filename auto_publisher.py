@@ -114,7 +114,6 @@ def run_profile(bot_name: str, bot_dir: Path, target_dt: datetime.datetime):
         # Permanent cleanup of the massive media files to save 50GB SSD space
         try:
             if os.path.exists(short["video_path"]): os.remove(short["video_path"])
-            if os.path.exists(short.get("audio_path", "")): os.remove(short["audio_path"])
         except:
             pass
 
@@ -161,8 +160,8 @@ def start_daemon():
             time.sleep(10)
             
         if all_bots_full:
-            log.info("ALL BOTS ARE MAXED OUT AT 75 DAYS! Factory sleeping for 12 hours...")
-            time.sleep(43200)
+            log.info("ALL BOTS ARE MAXED OUT AT 75 DAYS! Factory sleeping for 1 hour to await new profiles...")
+            time.sleep(3600)
 
 if __name__ == "__main__":
     start_daemon()

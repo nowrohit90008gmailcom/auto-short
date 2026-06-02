@@ -205,10 +205,10 @@ def _parse_highlights(text: str) -> list:
             ts_str, rest = block.split(']', 1)
             start_str, end_str = ts_str.split('-')
             
-            s_m, s_s = start_str.split(':')
+            s_m, s_s = start_str.strip().split(':')
             start_time = int(s_m) * 60 + int(s_s)
             
-            e_m, e_s = end_str.split(':')
+            e_m, e_s = end_str.strip().split(':')
             end_time = int(e_m) * 60 + int(e_s)
             
             # Extract title, desc, and keywords

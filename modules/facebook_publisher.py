@@ -39,7 +39,8 @@ def upload_to_facebook_reels(video_path: str, title: str, description: str, page
             return False
             
     except Exception as e:
-        log.error(f"Facebook Initialize Step failed: {e}")
+        err_det = e.response.text if hasattr(e, "response") and e.response is not None else ""
+        log.error(f"Facebook Initialize Step failed: {e} - Details: {err_det}")
         return False
         
     # STEP 2: Upload Binary
@@ -55,7 +56,8 @@ def upload_to_facebook_reels(video_path: str, title: str, description: str, page
             upload_res = requests.post(upload_url, data=f, headers=upload_headers, timeout=600)
             upload_res.raise_for_status()
     except Exception as e:
-        log.error(f"Facebook Upload Step failed: {e}")
+        err_det = e.response.text if hasattr(e, "response") and e.response is not None else ""
+        log.error(f"Facebook Upload Step failed: {e} - Details: {err_det}")
         return False
         
     # STEP 3: Publish
@@ -82,5 +84,6 @@ def upload_to_facebook_reels(video_path: str, title: str, description: str, page
         log.info(f"SUCCESS: Reel processed on Facebook! Video ID: {video_id}")
         return True
     except Exception as e:
-        log.error(f"Facebook Publish Step failed: {e}")
+        err_det = e.response.text if hasattr(e, "response") and e.response is not None else ""
+        log.error(f"Facebook Publish Step failed: {e} - Details: {err_det}")
         return False

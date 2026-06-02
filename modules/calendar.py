@@ -23,9 +23,13 @@ def get_next_available_slot(bot_dir: Path, run_times: list) -> datetime.datetime
     parsed_times.sort()
     
     if not state_file.exists():
+        for h, m in parsed_times:
+            candidate = now_ist.replace(hour=h, minute=m, second=0, microsecond=0)
+            if candidate > now_ist + datetime.timedelta(hours=1):
+                return candidate
+        # If all of today's slots have passed, start tomorrow
         tomorrow = now_ist + datetime.timedelta(days=1)
-        next_slot = tomorrow.replace(hour=parsed_times[0][0], minute=parsed_times[0][1], second=0, microsecond=0)
-        return next_slot
+        return tomorrow.replace(hour=parsed_times[0][0], minute=parsed_times[0][1], second=0, microsecond=0)
         
     with open(state_file, "r") as f:
         data = json.load(f)
@@ -44,11 +48,17 @@ def get_next_available_slot(bot_dir: Path, run_times: list) -> datetime.datetime
         tomorrow = last_dt + datetime.timedelta(days=1)
         next_slot = tomorrow.replace(hour=parsed_times[0][0], minute=parsed_times[0][1], second=0, microsecond=0)
         
-    # Prevent scheduling backwards in time
-    if next_slot < now_ist + datetime.timedelta(hours=1):
-        tomorrow = now_ist + datetime.timedelta(days=1)
-        next_slot = tomorrow.replace(hour=parsed_times[0][0], minute=parsed_times[0][1], second=0, microsecond=0)
-        
+    # Prevent scheduling backwards in time (or too close to current time)
+    if next_slot < now_ist + datetime.timedelta(minutes=30):
+        # Look for the very next slot from RIGHT NOW
+        for _ in range(7):
+            for h, m in parsed_times:
+                candidate = now_ist.replace(hour=h, minute=m, second=0, microsecond=0)
+                if candidate > now_ist + datetime.timedelta(hours=1):
+                    return candidate
+            now_ist = now_ist + datetime.timedelta(days=1)
+            now_ist = now_ist.replace(hour=0, minute=0, second=0)
+            
     return next_slot
 
 def update_calendar_slot(bot_dir: Path, booked_dt: datetime.datetime):

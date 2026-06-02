@@ -70,11 +70,11 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
     else:
         filters.append(f"{current_out}copy[final]")
         
-    # Audio: Voice Changer (pitch +1.05) + Speedup (1.23x total) + BGM
+    # Audio: Voice Changer (pitch +1.05) + Speedup (1.23x total) + Dynamic Normalization + Volume Boost + BGM
     if has_bgm:
-        filters.append(f"[0:a]asetrate=48000*1.05,aresample=48000,atempo=1.23/1.05,volume=1.0[a1];[{bgm_idx}:a]volume=0.07[a2];[a1][a2]amix=inputs=2:duration=first:dropout_transition=2[a_out]")
+        filters.append(f"[0:a]asetrate=48000*1.05,aresample=48000,atempo=1.23/1.05,dynaudnorm,volume=2.5[a1];[{bgm_idx}:a]volume=0.07[a2];[a1][a2]amix=inputs=2:duration=first:dropout_transition=2[a_out]")
     else:
-        filters.append(f"[0:a]asetrate=48000*1.05,aresample=48000,atempo=1.23/1.05,volume=1.0[a_out]")
+        filters.append(f"[0:a]asetrate=48000*1.05,aresample=48000,atempo=1.23/1.05,dynaudnorm,volume=2.5[a_out]")
         
     cmd.extend(["-filter_complex", ";".join(filters)])
     cmd.extend(["-map", "[final]", "-map", "[a_out]"])

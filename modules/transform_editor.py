@@ -131,16 +131,25 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
         subprocess.run(["ffmpeg", "-y", "-i", main_mp4, "-t", str(half), "-c", "copy", part1_mp4], check=True, capture_output=True)
         subprocess.run(["ffmpeg", "-y", "-i", main_mp4, "-ss", str(half), "-c", "copy", part2_mp4], check=True, capture_output=True)
         
-        # Concat
-        concat_txt = str(work_dir / "concat.txt")
-        with open(concat_txt, "w") as f:
-            f.write(f"file 'intro.mp4'\n")
-            f.write(f"file 'part1.mp4'\n")
-            if os.path.exists(midro_mp4): f.write(f"file 'midro.mp4'\n")
-            f.write(f"file 'part2.mp4'\n")
-            if os.path.exists(outro_mp4): f.write(f"file 'outro.mp4'\n")
+        # Concat using filter_complex for YouTube compliance (avoids timebase corruption)
+        files = ["intro.mp4", "part1.mp4"]
+        if os.path.exists(midro_mp4): files.append("midro.mp4")
+        files.append("part2.mp4")
+        if os.path.exists(outro_mp4): files.append("outro.mp4")
+        
+        c = ["ffmpeg", "-y"]
+        for f in files:
+            c.extend(["-i", str(work_dir / f)])
             
-        subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_txt, "-c", "copy", output_path], check=True, capture_output=True)
+        filter_str = ""
+        for i in range(len(files)):
+            filter_str += f"[{i}:v:0][{i}:a:0]"
+        filter_str += f"concat=n={len(files)}:v=1:a=1[outv][outa]"
+        
+        c.extend(["-filter_complex", filter_str, "-map", "[outv]", "-map", "[outa]"])
+        c.extend(["-c:v", "libx264", "-preset", "fast", "-r", "30", "-c:a", "aac", "-b:a", "192k", output_path])
+        
+        subprocess.run(c, check=True, capture_output=True)
         return True
     except Exception as e:
         log.error(f"Holy Trinity assembly failed: {e}")

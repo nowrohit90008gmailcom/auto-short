@@ -44,7 +44,7 @@ def _setup_assets():
     if len(existing_gameplays) == 0:
         log.info("Downloading diverse gameplay videos for split-screen from playlist...")
         target_template = str(GAMEPLAYS_DIR / "gameplay_%(autonumber)s.mp4")
-        cmd = [sys.executable, "-m", "yt_dlp"] + cookies_args + ["--extractor-args", "youtube:player_client=android,web", "-f", "bv*[height<=480]+ba/b/bestvideo+bestaudio/best", "--merge-output-format", "mp4", "--playlist-end", "50", "--match-filter", "duration <= 900 & !is_live", "--max-filesize", "500M", "-o", target_template, GAMEPLAY_PLAYLIST_URL]
+        cmd = [sys.executable, "-m", "yt_dlp"] + cookies_args + ["--force-ipv4", "--extractor-args", "youtube:player_client=android,ios", "-f", "bv*[height<=480]+ba/b/bestvideo+bestaudio/best", "--merge-output-format", "mp4", "--playlist-end", "50", "--match-filter", "duration <= 900 & !is_live", "--max-filesize", "500M", "-o", target_template, GAMEPLAY_PLAYLIST_URL]
         subprocess.run(cmd)
                 
     # Download Music
@@ -54,7 +54,7 @@ def _setup_assets():
         for i, url in enumerate(MUSIC_URLS):
             target_file = MUSIC_DIR / f"bgm_{i}.mp3"
             if not target_file.exists():
-                cmd = [sys.executable, "-m", "yt_dlp"] + cookies_args + ["--extractor-args", "youtube:player_client=android,web", "-x", "--audio-format", "mp3", "--match-filter", "!is_live", "-o", str(target_file), url]
+                cmd = [sys.executable, "-m", "yt_dlp"] + cookies_args + ["--force-ipv4", "--extractor-args", "youtube:player_client=android,ios", "-x", "--audio-format", "mp3", "--match-filter", "!is_live", "-o", str(target_file), url]
                 subprocess.run(cmd)
 
 def run_podcast_pipeline(url: str, title: str):

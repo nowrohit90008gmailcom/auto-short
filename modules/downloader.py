@@ -72,6 +72,13 @@ def download(url: str, movie_name: str) -> dict:
     if cookies_file.exists():
         ydl_opts["cookiefile"] = str(cookies_file)
         
+    from dotenv import load_dotenv
+    load_dotenv()
+    proxy_url = os.getenv("YOUTUBE_PROXY")
+    if proxy_url:
+        ydl_opts["proxy"] = proxy_url
+        log.info(f"Using Residential Proxy for download...")
+        
     log.info(f"Downloading: {movie_name} from {url}")
     
     # Download

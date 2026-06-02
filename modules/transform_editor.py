@@ -54,9 +54,9 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
         
     filters = []
     # Cinematic Filter + Zoompan on Top Half (Speed up video by 1.23x)
-    filters.append(f"[0:v]setpts=PTS/1.23,eq=brightness=-0.1:contrast=1.3:saturation=0.7:gamma=0.7,scale=720:896:force_original_aspect_ratio=increase,crop=720:896,zoompan=z='1.05+0.05*sin(time)':d=1:s=720x896:fps=30[top]")
-    filters.append(f"[{gp_idx}:v]scale=720:384:force_original_aspect_ratio=increase,crop=720:384[bottom]")
-    filters.append("[top][bottom]vstack=inputs=2[stacked]")
+    filters.append(f"[0:v]setpts=PTS/1.23,eq=brightness=-0.1:contrast=1.3:saturation=0.7:gamma=0.7,scale=720:896:force_original_aspect_ratio=increase,crop=720:896,zoompan=z='1.05+0.05*sin(time)':d=1:s=720x896:fps=30,setsar=1:1[top]")
+    filters.append(f"[{gp_idx}:v]scale=720:384:force_original_aspect_ratio=increase,crop=720:384,setsar=1:1[bottom]")
+    filters.append("[top][bottom]vstack=inputs=2,setsar=1:1,setdar=9:16[stacked]")
     current_out = "[stacked]"
     
     if has_broll:
@@ -108,8 +108,8 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
             
             c.extend(["-i", audio_file])
             escaped_text = text.replace("'", "\\'")
-            # Draw text center screen, red color, black outline
-            vf = f"scale=720:1280,drawtext=text='{escaped_text}':fontcolor=white:fontsize=80:x=(w-text_w)/2:y=(h-text_h)/2:borderw=5:bordercolor=red"
+            # Crop to 9:16 to fill screen properly, reset SAR/DAR, draw text center screen
+            vf = f"scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1:1,setdar=9:16,drawtext=text='{escaped_text}':fontcolor=white:fontsize=80:x=(w-text_w)/2:y=(h-text_h)/2:borderw=5:bordercolor=red"
             c.extend(["-filter_complex", f"[0:v]{vf}[v]", "-map", "[v]", "-map", "1:a"])
             c.extend(["-c:v", "libx264", "-preset", "fast", "-r", "30", "-c:a", "aac", "-b:a", "192k", out_file])
             subprocess.run(c, check=True, capture_output=True)
@@ -144,7 +144,7 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
         filter_str = ""
         for i in range(len(files)):
             filter_str += f"[{i}:v:0][{i}:a:0]"
-        filter_str += f"concat=n={len(files)}:v=1:a=1[outv][outa]"
+        filter_str += f"concat=n={len(files)}:v=1:a=1[concated];[concated]setsar=1:1,setdar=9:16[outv]"
         
         c.extend(["-filter_complex", filter_str, "-map", "[outv]", "-map", "[outa]"])
         c.extend(["-c:v", "libx264", "-preset", "fast", "-r", "30", "-c:a", "aac", "-b:a", "192k", output_path])

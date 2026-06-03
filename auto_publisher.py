@@ -11,6 +11,8 @@ from podcast_pipeline import run_podcast_pipeline
 from modules.channel_scraper import get_random_unprocessed_video, mark_as_processed
 from modules.facebook_publisher import upload_to_facebook_reels
 from modules.youtube_publisher import upload_to_youtube_shorts
+from modules.upload_verifier import verify_youtube_upload, verify_facebook_upload
+from modules.upload_history import record_upload
 from modules.calendar import get_next_available_slot, update_calendar_slot
 
 log = get_logger("auto_publisher")
@@ -61,6 +63,8 @@ def run_profile(bot_name: str, bot_dir: Path, target_dt: datetime.datetime):
     
     # Retry up to 5 different videos if YouTube randomly blocks one
     max_retries = 5
+    generated_shorts = None
+    video = None
     for attempt in range(1, max_retries + 1):
         video = get_random_unprocessed_video(channel_url, history_file)
         
@@ -110,7 +114,8 @@ def run_profile(bot_name: str, bot_dir: Path, target_dt: datetime.datetime):
         fb_unix, yt_iso = schedules[idx]
         log.info(f"[{bot_name}] Scheduling Short for {target_dt.strftime('%Y-%m-%d %H:%M:%S')} IST...")
         
-        fb_success = upload_to_facebook_reels(
+        # --- Upload to Facebook ---
+        fb_result = upload_to_facebook_reels(
             video_path=short["video_path"],
             title=short["title"],
             description=short["description"],
@@ -118,26 +123,98 @@ def run_profile(bot_name: str, bot_dir: Path, target_dt: datetime.datetime):
             access_token=page_token,
             schedule_time=fb_unix
         )
+        fb_video_id = fb_result if fb_result and fb_result is not False else None
+        fb_success = fb_video_id is not None
         
-        yt_success = upload_to_youtube_shorts(
+        # --- Upload to YouTube ---
+        yt_result = upload_to_youtube_shorts(
             video_path=short["video_path"],
             title=short["title"],
             description=short["description"],
             credentials_dir=credentials_dir,
             publish_at=yt_iso
         )
+        yt_video_id = yt_result if yt_result and yt_result is not False else None
+        yt_success = yt_video_id is not None
         
-        if fb_success and yt_success:
-            log.info(f"[{bot_name}] Successfully scheduled {short['title']} for {target_dt}!")
+        # --- Retry failed platform once more ---
+        if not yt_success and fb_success:
+            log.info(f"[{bot_name}] YouTube failed, retrying once more...")
+            time.sleep(10)
+            yt_result = upload_to_youtube_shorts(
+                video_path=short["video_path"],
+                title=short["title"],
+                description=short["description"],
+                credentials_dir=credentials_dir,
+                publish_at=yt_iso
+            )
+            yt_video_id = yt_result if yt_result and yt_result is not False else None
+            yt_success = yt_video_id is not None
+            
+        if not fb_success and yt_success:
+            log.info(f"[{bot_name}] Facebook failed, retrying once more...")
+            time.sleep(10)
+            fb_result = upload_to_facebook_reels(
+                video_path=short["video_path"],
+                title=short["title"],
+                description=short["description"],
+                page_id=page_id,
+                access_token=page_token,
+                schedule_time=fb_unix
+            )
+            fb_video_id = fb_result if fb_result and fb_result is not False else None
+            fb_success = fb_video_id is not None
+        
+        # --- Verify uploads ---
+        yt_verified = False
+        fb_verified = False
+        
+        if yt_success and yt_video_id:
+            log.info(f"[{bot_name}] Verifying YouTube upload: {yt_video_id}...")
+            yt_verify = verify_youtube_upload(yt_video_id, credentials_dir)
+            yt_verified = yt_verify.get("verified", False)
+            if not yt_verified:
+                log.warning(f"[{bot_name}] YouTube verification warning: {yt_verify.get('reason', 'unknown')}")
+        
+        if fb_success and fb_video_id:
+            log.info(f"[{bot_name}] Verifying Facebook upload: {fb_video_id}...")
+            fb_verify = verify_facebook_upload(fb_video_id, page_token)
+            fb_verified = fb_verify.get("verified", False)
+            if not fb_verified:
+                log.warning(f"[{bot_name}] Facebook verification warning: {fb_verify.get('reason', 'unknown')}")
+        
+        # --- Record upload history ---
+        record_upload(bot_dir, {
+            "title": short["title"],
+            "yt_video_id": yt_video_id,
+            "fb_video_id": fb_video_id,
+            "yt_verified": yt_verified,
+            "fb_verified": fb_verified,
+            "yt_status": "success" if yt_success else "failed",
+            "fb_status": "success" if fb_success else "failed",
+            "scheduled_for": target_dt.isoformat(),
+            "video_path": short["video_path"],
+        })
+        
+        # Success = at least ONE platform uploaded successfully
+        if yt_success or fb_success:
+            platforms = []
+            if yt_success: platforms.append(f"YouTube({yt_video_id})")
+            if fb_success: platforms.append(f"Facebook({fb_video_id})")
+            log.info(f"[{bot_name}] Upload SUCCESS on: {', '.join(platforms)} for {target_dt}!")
             success = True
         else:
-            log.error(f"[{bot_name}] Failed to upload/schedule {short['title']}")
+            log.error(f"[{bot_name}] BOTH uploads failed for {short['title']}")
             
-        # Permanent cleanup of the massive media files to save 50GB SSD space
-        try:
-            if os.path.exists(short["video_path"]): os.remove(short["video_path"])
-        except:
-            pass
+        # Only delete video file if at least one upload succeeded
+        # Keep the file if both failed so it can be retried
+        if success:
+            try:
+                if os.path.exists(short["video_path"]): os.remove(short["video_path"])
+            except:
+                pass
+        else:
+            log.warning(f"[{bot_name}] Keeping video file for retry: {short['video_path']}")
 
     if success:
         mark_as_processed(video["id"], history_file)

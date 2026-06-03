@@ -39,6 +39,44 @@ def get_font_file() -> str:
     return None
 
 
+# Vibrant color palette for cycling text overlays (viral Shorts style)
+CYCLING_COLORS = [
+    ("FF3333", "990000"),  # Neon Red + dark red border
+    ("FFD700", "CC8800"),  # Gold + dark gold border
+    ("00FF88", "008844"),  # Neon Green + dark green border
+    ("00DDFF", "0066CC"),  # Cyan + dark blue border
+    ("FF44FF", "990099"),  # Magenta + dark purple border
+]
+
+
+def _build_color_cycling_drawtext(text: str, font_arg: str = "", fontsize: int = 80, y_expr: str = "(h-text_h)/2", border_width: int = 5) -> str:
+    """Build a color-cycling drawtext filter chain for viral text overlays.
+    Returns a comma-separated chain of drawtext filters that cycle through 5 vibrant colors."""
+    escaped = text.replace("'", "\\\'")
+    cycle = 1.5  # total cycle time in seconds
+    n = len(CYCLING_COLORS)
+    step = cycle / n
+    
+    parts = []
+    for j, (fg, border) in enumerate(CYCLING_COLORS):
+        t_start = round(j * step, 3)
+        t_end = round((j + 1) * step, 3)
+        enable = f"between(mod(t,{cycle}),{t_start},{t_end})"
+        dt = (
+            f"drawtext=text='{escaped}'"
+            f":fontcolor=0x{fg}"
+            f":fontsize={fontsize}"
+            f":x=(w-text_w)/2:y={y_expr}"
+            f":borderw={border_width}:bordercolor=0x{border}"
+            f":shadowcolor=black:shadowx=3:shadowy=3"
+            f"{font_arg}"
+            f":enable='{enable}'"
+        )
+        parts.append(dt)
+    
+    return ",".join(parts)
+
+
 def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_audio: str, broll_video: str, captions_ass: str, output_path: str, title_hook: str, intro_audio_path: str = None, midro_audio_path: str = None, outro_audio_path: str = None):
     if not os.path.exists(podcast_clip):
         raise FileNotFoundError(f"Podcast clip not found: {podcast_clip}")
@@ -82,8 +120,11 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
         
     has_bgm = bgm_audio and os.path.exists(bgm_audio)
     if has_bgm:
+        log.info(f"Mixing BGM track: {bgm_audio}")
         cmd.extend(["-stream_loop", "-1", "-i", bgm_audio])
         bgm_idx = 3 if has_broll else 2
+    else:
+        log.warning("No BGM audio provided or file not found — video will have no background music!")
         
     filters = []
     # Cinematic Filter + Zoompan on Top Half (Speed up video by 1.23x)
@@ -105,7 +146,7 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
         
     # Audio: Voice Changer (pitch +1.05) + Speedup (1.23x total) + Dynamic Normalization + Volume Boost + BGM
     if has_bgm:
-        filters.append(f"[0:a]asetrate=48000*1.05,aresample=48000,atempo=1.23/1.05,dynaudnorm,volume=2.5[a1];[{bgm_idx}:a]volume=0.07[a2];[a1][a2]amix=inputs=2:duration=first:dropout_transition=2[a_out]")
+        filters.append(f"[0:a]asetrate=48000*1.05,aresample=48000,atempo=1.23/1.05,dynaudnorm,volume=2.5[a1];[{bgm_idx}:a]volume=0.15[a2];[a1][a2]amix=inputs=2:duration=first:dropout_transition=2[a_out]")
     else:
         filters.append(f"[0:a]asetrate=48000*1.05,aresample=48000,atempo=1.23/1.05,dynaudnorm,volume=2.5[a_out]")
         
@@ -140,15 +181,16 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
                 c.extend(["-f", "lavfi", "-i", f"color=c=black:s=720x1280:d={a_dur}"])
             
             c.extend(["-i", audio_file])
-            escaped_text = text.replace("'", "\\'")
             # Find a valid font to avoid Fontconfig crash
             font_path = get_font_file()
             font_arg = ""
             if font_path:
                 escaped_font = font_path.replace("\\", "/").replace(":", "\\:")
                 font_arg = f":fontfile='{escaped_font}'"
-            # Crop to 9:16 to fill screen properly, reset SAR/DAR, draw text center screen
-            vf = f"scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1:1,setdar=9:16,drawtext=text='{escaped_text}':fontcolor=white:fontsize=80:x=(w-text_w)/2:y=(h-text_h)/2:borderw=5:bordercolor=red{font_arg}"
+            # Build color-cycling drawtext chain for viral effect
+            drawtext_chain = _build_color_cycling_drawtext(text, font_arg=font_arg)
+            # Crop to 9:16 to fill screen properly, reset SAR/DAR, overlay color-cycling text
+            vf = f"scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1:1,setdar=9:16,{drawtext_chain}"
             c.extend(["-filter_complex", f"[0:v]{vf}[v]", "-map", "[v]", "-map", "1:a"])
             c.extend(["-c:v", "libx264", "-preset", "fast", "-r", "30", "-aspect", "9:16", "-c:a", "aac", "-b:a", "192k", out_file])
             subprocess.run(c, check=True, capture_output=True)

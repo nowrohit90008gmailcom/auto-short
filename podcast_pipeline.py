@@ -22,17 +22,95 @@ MUSIC_DIR = ASSETS_DIR / "music"
 
 GAMEPLAY_PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLdxE72LlkFodEb4jBP8ewH1-qfUcneR7Z"
 
-MUSIC_URLS = [
-    "https://www.youtube.com/watch?v=5Eqb_-j3FDA",  # Lofi chill
-    "https://www.youtube.com/watch?v=1tV-a7K6aXU",  # Phonk drift
-    "https://www.youtube.com/watch?v=mGz4hI5pAQQ",  # Chillstep
+BEAT_CONFIGS = [
+    {
+        "name": "lofi_chill",
+        "filter": (
+            "aevalsrc='0.3*sin(2*PI*220*t)*exp(-3*mod(t,0.5))"
+            "+0.2*sin(2*PI*330*t)*exp(-4*mod(t,0.75))"
+            "+0.15*sin(2*PI*165*t)*exp(-2*mod(t,1.0))"
+            "+0.1*sin(2*PI*440*t)*exp(-5*mod(t,0.25))'"
+            ":s=44100:d=60,tremolo=f=2:d=0.3,lowpass=f=3000"
+        ),
+    },
+    {
+        "name": "dark_phonk",
+        "filter": (
+            "aevalsrc='0.4*sin(2*PI*55*t)*exp(-2*mod(t,0.5))"
+            "+0.3*sin(2*PI*82.5*t)*exp(-3*mod(t,0.25))"
+            "+0.1*random(0)*exp(-10*mod(t,0.125))'"
+            ":s=44100:d=60,lowpass=f=800,volume=1.5"
+        ),
+    },
+    {
+        "name": "ambient_pad",
+        "filter": (
+            "aevalsrc='0.2*sin(2*PI*174*t+sin(0.1*t))"
+            "+0.2*sin(2*PI*220*t+sin(0.15*t))"
+            "+0.15*sin(2*PI*261*t+sin(0.08*t))"
+            "+0.1*sin(2*PI*130*t)'"
+            ":s=44100:d=60,lowpass=f=4000"
+        ),
+    },
+    {
+        "name": "trap_pulse",
+        "filter": (
+            "aevalsrc='0.35*sin(2*PI*65*t)*exp(-4*mod(t,0.25))"
+            "+0.2*sin(2*PI*130*t)*exp(-6*mod(t,0.5))"
+            "+0.05*random(0)*exp(-20*mod(t,0.125))'"
+            ":s=44100:d=60,lowpass=f=2000"
+        ),
+    },
+    {
+        "name": "cinematic_drone",
+        "filter": (
+            "aevalsrc='0.25*sin(2*PI*82*t)"
+            "+0.2*sin(2*PI*123*t+sin(0.05*t)*2)"
+            "+0.15*sin(2*PI*164*t+sin(0.07*t))"
+            "+0.1*sin(2*PI*41*t)'"
+            ":s=44100:d=60,lowpass=f=2500"
+        ),
+    },
 ]
 
 for d in [PODCASTS_DIR, OUTPUT_DIR, ASSETS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
+def _generate_royalty_free_beats():
+    """Generate royalty-free background beats using FFmpeg audio synthesis.
+    100% original, zero copyright risk, zero network dependency."""
+    MUSIC_DIR.mkdir(parents=True, exist_ok=True)
+    
+    existing = list(MUSIC_DIR.glob("*.mp3"))
+    if len(existing) >= len(BEAT_CONFIGS):
+        return  # All beats already generated
+    
+    log.info(f"Generating {len(BEAT_CONFIGS)} royalty-free background beats...")
+    
+    for i, beat in enumerate(BEAT_CONFIGS):
+        target = MUSIC_DIR / f"bgm_{i}_{beat['name']}.mp3"
+        if target.exists() and target.stat().st_size > 10000:
+            continue
+        
+        cmd = [
+            "ffmpeg", "-y",
+            "-f", "lavfi", "-i", beat["filter"],
+            "-c:a", "libmp3lame", "-b:a", "192k",
+            str(target)
+        ]
+        
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            if result.returncode == 0 and target.exists():
+                size_kb = target.stat().st_size / 1024
+                log.info(f"Generated royalty-free beat: {beat['name']} ({size_kb:.0f} KB)")
+            else:
+                log.warning(f"Failed to generate beat {beat['name']}: {result.stderr[:200]}")
+        except Exception as e:
+            log.warning(f"Beat generation error for {beat['name']}: {e}")
+
 def _setup_assets():
-    """Downloads a royalty-free gameplay videos and background music if we don't have them."""
+    """Downloads royalty-free gameplay videos and generates background beats."""
     GAMEPLAYS_DIR.mkdir(parents=True, exist_ok=True)
     MUSIC_DIR.mkdir(parents=True, exist_ok=True)
     
@@ -52,15 +130,8 @@ def _setup_assets():
         cmd = [sys.executable, "-m", "yt_dlp"] + cookies_args + proxy_args + ["--force-ipv4", "-f", "bv*[height<=480]+ba/b/bestvideo+bestaudio/best", "--merge-output-format", "mp4", "--playlist-end", "50", "--match-filter", "duration <= 900 & !is_live", "--max-filesize", "500M", "-o", target_template, GAMEPLAY_PLAYLIST_URL]
         subprocess.run(cmd)
                 
-    # Download Music
-    existing_music = list(MUSIC_DIR.glob("*.mp3"))
-    if len(existing_music) == 0:
-        log.info("Downloading diverse background music tracks...")
-        for i, url in enumerate(MUSIC_URLS):
-            target_file = MUSIC_DIR / f"bgm_{i}.mp3"
-            if not target_file.exists():
-                cmd = [sys.executable, "-m", "yt_dlp"] + cookies_args + proxy_args + ["--force-ipv4", "-x", "--audio-format", "mp3", "--match-filter", "!is_live", "-o", str(target_file), url]
-                subprocess.run(cmd)
+    # Generate royalty-free beats (replaces YouTube music downloads)
+    _generate_royalty_free_beats()
 
 def run_podcast_pipeline(url: str, title: str):
     log.info(f"Starting Transformative Podcast Pipeline for: {title}")

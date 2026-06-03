@@ -106,22 +106,51 @@ def assemble_short(visual_path: str, audio_path: str, ass_path: str,
     
     # Find a valid font to avoid Fontconfig crash
     font_path = get_font_file()
-    font_option = ""
+    font_arg = ""
     if font_path:
         escaped_font = font_path.replace("\\", "/").replace(":", "\\:")
-        font_option = f"fontfile='{escaped_font}':"
+        font_arg = f":fontfile='{escaped_font}'"
     
     # Use relative path for ASS file to bypass FFmpeg absolute path colon issues on Windows
     ass_rel = os.path.relpath(ass_path, os.getcwd()).replace("\\", "/")
     
-    # Build filter chain — 9:16 pad (no crop) + big hook text overlay + pop-up captions
+    # Color-cycling palette for viral text effect
+    cycling_colors = [
+        ("FF3333", "990000"),  # Neon Red
+        ("FFD700", "CC8800"),  # Gold
+        ("00FF88", "008844"),  # Neon Green
+        ("00DDFF", "0066CC"),  # Cyan
+        ("FF44FF", "990099"),  # Magenta
+    ]
+    cycle_time = 1.5
+    step = cycle_time / len(cycling_colors)
+    
+    # Build color-cycling drawtext filters for hook text
+    dt_filters = []
+    for j, (fg, border) in enumerate(cycling_colors):
+        t_start = round(j * step, 3)
+        t_end = round((j + 1) * step, 3)
+        enable = f"between(mod(t,{cycle_time}),{t_start},{t_end})"
+        dt = (
+            f"drawtext=text='{hook_esc}'"
+            f":fontcolor=0x{fg}"
+            f":fontsize=80"
+            f":x=(w-text_w)/2:y=180"
+            f":borderw=5:bordercolor=0x{border}"
+            f":shadowcolor=black:shadowx=4:shadowy=4"
+            f"{font_arg}"
+            f":enable='{enable}'"
+        )
+        dt_filters.append(dt)
+    
+    drawtext_chain = ",".join(dt_filters)
+    
+    # Build filter chain — 9:16 pad (no crop) + color-cycling hook text + pop-up captions
     vf_parts = [
         # 1. Scale to fit 1080x1920, pad with black bars (no cropping)
         "[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2[base]",
-        # 2. Hook text — giant white text with thick outline and shadow, moved down slightly
-        f"[base]drawtext={font_option}text='{hook_esc}':"
-        f"fontcolor=white:fontsize=80:borderw=5:bordercolor=black:"
-        f"shadowcolor=black:shadowx=4:shadowy=4:x=(w-text_w)/2:y=180[combined]",
+        # 2. Hook text — color-cycling giant text with outline and shadow
+        f"[base]{drawtext_chain}[combined]",
     ]
     
     if ass_has_content:

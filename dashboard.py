@@ -113,9 +113,14 @@ def update_cookies():
         return jsonify({"success": False, "error": "Empty cookies content provided."})
     
     try:
+        # Sanitize text area formatting to strictly match Netscape HTTP format
+        clean_cookies = cookies_content.replace('\r\n', '\n').strip()
+        if not clean_cookies.startswith("# Netscape HTTP Cookie File"):
+            clean_cookies = "# Netscape HTTP Cookie File\n" + clean_cookies
+            
         cookies_file = WORKSPACE / "cookies.txt"
-        with open(cookies_file, "w", encoding="utf-8") as f:
-            f.write(cookies_content)
+        with open(cookies_file, "w", encoding="utf-8", newline='\n') as f:
+            f.write(clean_cookies + "\n")
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})

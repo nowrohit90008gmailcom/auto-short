@@ -64,6 +64,7 @@ def download(url: str, movie_name: str) -> dict:
         "socket_timeout": 30,
         "no_warnings": False,
         "ignoreerrors": False,
+        "remotely_accessible_components": ["ejs:github"],
     }
     
     cookies_file = WORKSPACE / "cookies.txt"

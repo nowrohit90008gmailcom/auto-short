@@ -1,10 +1,43 @@
 import os
 import random
 import subprocess
+import platform
 from pathlib import Path
 from utils.logger import get_logger
 
 log = get_logger("transform_editor")
+
+def get_font_file() -> str:
+    system = platform.system()
+    if system == "Windows":
+        win_paths = [
+            "C:/Windows/Fonts/arial.ttf",
+            "C:/Windows/Fonts/calibri.ttf",
+            "/Windows/Fonts/arial.ttf"
+        ]
+        for p in win_paths:
+            if os.path.exists(p):
+                return p
+    elif system == "Darwin":
+        mac_paths = [
+            "/Library/Fonts/Arial.ttf",
+            "/System/Library/Fonts/Helvetica.ttc",
+            "/Library/Fonts/Supplemental/Arial.ttf"
+        ]
+        for p in mac_paths:
+            if os.path.exists(p):
+                return p
+    else:
+        linux_paths = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeSans.ttf"
+        ]
+        for p in linux_paths:
+            if os.path.exists(p):
+                return p
+    return None
+
 
 def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_audio: str, broll_video: str, captions_ass: str, output_path: str, title_hook: str, intro_audio_path: str = None, midro_audio_path: str = None, outro_audio_path: str = None):
     if not os.path.exists(podcast_clip):
@@ -89,7 +122,7 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
         
     # STEP 2: Holy Trinity Setup (If Intro exists)
     if not intro_audio_path or not os.path.exists(intro_audio_path):
-        os.rename(main_mp4, output_path)
+        os.replace(main_mp4, output_path)
         return True
         
     try:
@@ -108,8 +141,14 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
             
             c.extend(["-i", audio_file])
             escaped_text = text.replace("'", "\\'")
+            # Find a valid font to avoid Fontconfig crash
+            font_path = get_font_file()
+            font_arg = ""
+            if font_path:
+                escaped_font = font_path.replace("\\", "/").replace(":", "\\:")
+                font_arg = f":fontfile='{escaped_font}'"
             # Crop to 9:16 to fill screen properly, reset SAR/DAR, draw text center screen
-            vf = f"scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1:1,setdar=9:16,drawtext=text='{escaped_text}':fontcolor=white:fontsize=80:x=(w-text_w)/2:y=(h-text_h)/2:borderw=5:bordercolor=red"
+            vf = f"scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1:1,setdar=9:16,drawtext=text='{escaped_text}':fontcolor=white:fontsize=80:x=(w-text_w)/2:y=(h-text_h)/2:borderw=5:bordercolor=red{font_arg}"
             c.extend(["-filter_complex", f"[0:v]{vf}[v]", "-map", "[v]", "-map", "1:a"])
             c.extend(["-c:v", "libx264", "-preset", "fast", "-r", "30", "-aspect", "9:16", "-c:a", "aac", "-b:a", "192k", out_file])
             subprocess.run(c, check=True, capture_output=True)
@@ -126,11 +165,11 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
         if outro_audio_path and os.path.exists(outro_audio_path):
             make_segment(outro_audio_path, "SUBSCRIBE!", outro_mp4, gameplay_video)
             
-        # Split main.mp4 exactly in half
+        # Split main.mp4 exactly in half (re-encode to avoid non-keyframe glitches and ensure aspect metadata)
         half = sped_dur / 2
-        c_part1 = ["ffmpeg", "-y", "-i", main_mp4, "-t", str(half), "-c", "copy", "-aspect", "9:16", part1_mp4]
+        c_part1 = ["ffmpeg", "-y", "-i", main_mp4, "-t", str(half), "-c:v", "libx264", "-preset", "fast", "-r", "30", "-aspect", "9:16", "-c:a", "aac", "-b:a", "192k", part1_mp4]
         subprocess.run(c_part1, check=True, capture_output=True)
-        c_part2 = ["ffmpeg", "-y", "-i", main_mp4, "-ss", str(half), "-c", "copy", "-aspect", "9:16", part2_mp4]
+        c_part2 = ["ffmpeg", "-y", "-i", main_mp4, "-ss", str(half), "-c:v", "libx264", "-preset", "fast", "-r", "30", "-aspect", "9:16", "-c:a", "aac", "-b:a", "192k", part2_mp4]
         subprocess.run(c_part2, check=True, capture_output=True)
         
         # Concat using filter_complex for YouTube compliance (avoids timebase corruption)

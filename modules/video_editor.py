@@ -2,12 +2,46 @@
 Video editor — assembles the final 9:16 YouTube Short / Facebook Reel.
 Combines: visual clips + narration audio + ASS captions + Top White Banner → final output.
 """
+import os
 import subprocess
 import json
+import platform
 from pathlib import Path
 from utils.logger import get_logger
 
 log = get_logger("video_editor")
+
+def get_font_file() -> str:
+    system = platform.system()
+    if system == "Windows":
+        win_paths = [
+            "C:/Windows/Fonts/arial.ttf",
+            "C:/Windows/Fonts/calibri.ttf",
+            "/Windows/Fonts/arial.ttf"
+        ]
+        for p in win_paths:
+            if os.path.exists(p):
+                return p
+    elif system == "Darwin":
+        mac_paths = [
+            "/Library/Fonts/Arial.ttf",
+            "/System/Library/Fonts/Helvetica.ttc",
+            "/Library/Fonts/Supplemental/Arial.ttf"
+        ]
+        for p in mac_paths:
+            if os.path.exists(p):
+                return p
+    else:
+        linux_paths = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeSans.ttf"
+        ]
+        for p in linux_paths:
+            if os.path.exists(p):
+                return p
+    return None
+
 
 WORKSPACE = Path(__file__).resolve().parent.parent / "workspace"
 OUTPUT_DIR = WORKSPACE / "output"
@@ -70,11 +104,14 @@ def assemble_short(visual_path: str, audio_path: str, ass_path: str,
     # Escape for FFmpeg drawtext
     hook_esc = hook_clean.replace("'", "").replace(":", "\\:").replace(",", "\\,").replace('"', '').replace("%", "%%").replace("\\", "/")
     
-    # Font path — C\: format works in FFmpeg on Windows
-    font = r"C\:/Windows/Fonts/arial.ttf"
+    # Find a valid font to avoid Fontconfig crash
+    font_path = get_font_file()
+    font_option = ""
+    if font_path:
+        escaped_font = font_path.replace("\\", "/").replace(":", "\\:")
+        font_option = f"fontfile='{escaped_font}':"
     
     # Use relative path for ASS file to bypass FFmpeg absolute path colon issues on Windows
-    import os
     ass_rel = os.path.relpath(ass_path, os.getcwd()).replace("\\", "/")
     
     # Build filter chain — 9:16 pad (no crop) + big hook text overlay + pop-up captions
@@ -82,7 +119,7 @@ def assemble_short(visual_path: str, audio_path: str, ass_path: str,
         # 1. Scale to fit 1080x1920, pad with black bars (no cropping)
         "[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2[base]",
         # 2. Hook text — giant white text with thick outline and shadow, moved down slightly
-        f"[base]drawtext=fontfile='{font}':text='{hook_esc}':"
+        f"[base]drawtext={font_option}text='{hook_esc}':"
         f"fontcolor=white:fontsize=80:borderw=5:bordercolor=black:"
         f"shadowcolor=black:shadowx=4:shadowy=4:x=(w-text_w)/2:y=180[combined]",
     ]

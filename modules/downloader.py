@@ -51,47 +51,54 @@ def download(url: str, movie_name: str) -> dict:
                 "thumbnail_url": "",
             }
             
+    import sys
+    
     file_id = uuid.uuid4().hex[:12]
     output_template = str(movie_dir / f"{file_id}.%(ext)s")
     
-    # yt-dlp options
-    ydl_opts = {
-        "format": "bestvideo+bestaudio/best",
-        "merge_output_format": "mp4",
-        "outtmpl": output_template,
-        "noplaylist": True,
-        "retries": 3,
-        "socket_timeout": 30,
-        "no_warnings": False,
-        "ignoreerrors": False,
-        "remotely_accessible_components": ["ejs:github"],
-    }
+    # Build CLI command for maximum reliability
+    cmd = [
+        sys.executable, "-m", "yt_dlp",
+        "--remote-components", "ejs:github",
+        "-f", "bestvideo+bestaudio/best",
+        "--merge-output-format", "mp4",
+        "-o", output_template,
+        "--no-playlist",
+        "--retries", "3",
+        "--socket-timeout", "30",
+        "--force-ipv4",
+    ]
     
     cookies_file = WORKSPACE / "cookies.txt"
     if cookies_file.exists():
-        ydl_opts["cookiefile"] = str(cookies_file)
+        cmd += ["--cookies", str(cookies_file)]
         
     from dotenv import load_dotenv
     load_dotenv()
     proxy_url = os.getenv("YOUTUBE_PROXY")
     if proxy_url:
-        ydl_opts["proxy"] = proxy_url
+        cmd += ["--proxy", proxy_url]
         log.info(f"Using Residential Proxy for download...")
+    
+    cmd.append(url)
         
     log.info(f"Downloading: {movie_name} from {url}")
     
-    # Download
+    # Download via CLI subprocess
     title = movie_name
     duration = 0
     thumbnail = ""
     
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            if info:
-                title = info.get("title", movie_name)
-                duration = info.get("duration", 0) or 0
-                thumbnail = info.get("thumbnail", "")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+        if result.returncode != 0:
+            error_msg = result.stderr.strip().split("\n")[-1] if result.stderr else "Unknown error"
+            log.error(f"yt-dlp download failed: {error_msg}")
+            raise RuntimeError(f"Download failed for {url}: {error_msg}")
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"Download timed out after 30 minutes for {url}")
+    except RuntimeError:
+        raise
     except Exception as e:
         log.error(f"yt-dlp download failed: {e}")
         raise RuntimeError(f"Download failed for {url}: {e}")

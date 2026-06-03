@@ -84,12 +84,41 @@ def _transcribe_chunk_groq(audio_path: str) -> dict:
             
             # Extract words (Groq returns them as dicts)
             words = []
-            for w in (data.get("words") or []):
-                word = w.get("word", w) if isinstance(w, dict) else str(w)
-                word = sanscript.transliterate(word, sanscript.DEVANAGARI, sanscript.ITRANS)
-                start = w.get("start", 0) if isinstance(w, dict) else 0
-                end = w.get("end", 0) if isinstance(w, dict) else 0
-                words.append({"word": word, "start": start, "end": end})
+            
+            # Groq sometimes puts words at the root, sometimes inside segments
+            if data.get("words"):
+                source_words = data["words"]
+            else:
+                source_words = []
+                for s in data.get("segments", []):
+                    if "words" in s:
+                        source_words.extend(s["words"])
+                        
+            if source_words:
+                for w in source_words:
+                    word = w.get("word", w) if isinstance(w, dict) else str(w)
+                    word = sanscript.transliterate(word, sanscript.DEVANAGARI, sanscript.ITRANS)
+                    start = w.get("start", 0) if isinstance(w, dict) else 0
+                    end = w.get("end", 0) if isinstance(w, dict) else 0
+                    words.append({"word": word, "start": start, "end": end})
+            else:
+                # Fallback: estimate word timestamps from segments if Groq API omits them
+                for s in data.get("segments", []):
+                    text = s.get("text", "").strip()
+                    if not text: continue
+                    segment_words = text.split()
+                    if not segment_words: continue
+                    
+                    start = float(s.get("start", 0))
+                    end = float(s.get("end", start + 2.0))
+                    duration = end - start
+                    time_per_word = duration / len(segment_words)
+                    
+                    for i, word in enumerate(segment_words):
+                        word = sanscript.transliterate(word, sanscript.DEVANAGARI, sanscript.ITRANS)
+                        w_start = start + (i * time_per_word)
+                        w_end = w_start + time_per_word
+                        words.append({"word": word, "start": w_start, "end": w_end})
             
             # Extract segments
             segments = []

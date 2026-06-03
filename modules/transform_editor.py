@@ -144,7 +144,7 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
         filter_str = ""
         for i in range(len(files)):
             filter_str += f"[{i}:v:0][{i}:a:0]"
-        filter_str += f"concat=n={len(files)}:v=1:a=1[concated];[concated]setsar=1:1,setdar=9:16[outv]"
+        filter_str += f"concat=n={len(files)}:v=1:a=1[outv_raw][outa];[outv_raw]setsar=1:1,setdar=9:16[outv]"
         
         c.extend(["-filter_complex", filter_str, "-map", "[outv]", "-map", "[outa]"])
         c.extend(["-c:v", "libx264", "-preset", "fast", "-r", "30", "-c:a", "aac", "-b:a", "192k", output_path])

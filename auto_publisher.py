@@ -58,19 +58,41 @@ def run_profile(bot_name: str, bot_dir: Path, target_dt: datetime.datetime):
         return False
         
     history_file = bot_dir / "processed_history.json"
-    video = get_random_unprocessed_video(channel_url, history_file)
     
-    if not video:
-        log.warning(f"[{bot_name}] No unprocessed videos found in {channel_url}.")
-        return False
+    # Retry up to 5 different videos if YouTube randomly blocks one
+    max_retries = 5
+    for attempt in range(1, max_retries + 1):
+        video = get_random_unprocessed_video(channel_url, history_file)
         
-    log.info(f"[{bot_name}] Picked video: {video['title']} ({video['url']})")
-    
-    generated_shorts = run_podcast_pipeline(video["url"], video["title"])
-    
-    if not generated_shorts:
-        log.error(f"[{bot_name}] Pipeline failed to generate shorts.")
-        mark_as_processed(video["id"], history_file)
+        if not video:
+            log.warning(f"[{bot_name}] No unprocessed videos found in {channel_url}.")
+            return False
+            
+        log.info(f"[{bot_name}] Attempt {attempt}/{max_retries}: Trying video: {video['title']} ({video['url']})")
+        
+        try:
+            generated_shorts = run_podcast_pipeline(video["url"], video["title"])
+        except Exception as e:
+            error_str = str(e)
+            if "Sign in to confirm" in error_str or "Requested format is not available" in error_str:
+                log.warning(f"[{bot_name}] YouTube blocked this video (attempt {attempt}/{max_retries}). Skipping to next video...")
+                mark_as_processed(video["id"], history_file)
+                time.sleep(5)
+                continue
+            else:
+                log.error(f"[{bot_name}] Non-retryable error: {e}")
+                mark_as_processed(video["id"], history_file)
+                return False
+        
+        if not generated_shorts:
+            log.error(f"[{bot_name}] Pipeline failed to generate shorts.")
+            mark_as_processed(video["id"], history_file)
+            continue
+        
+        # SUCCESS - we got shorts, proceed to publish
+        break
+    else:
+        log.error(f"[{bot_name}] All {max_retries} video attempts were blocked by YouTube. Giving up this cycle.")
         return False
         
     env_vars = dotenv_values(bot_dir / ".env")

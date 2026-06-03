@@ -78,7 +78,7 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
         
     cmd.extend(["-filter_complex", ";".join(filters)])
     cmd.extend(["-map", "[final]", "-map", "[a_out]"])
-    cmd.extend(["-c:v", "libx264", "-preset", "fast", "-r", "30", "-c:a", "aac", "-b:a", "192k", main_mp4])
+    cmd.extend(["-c:v", "libx264", "-preset", "fast", "-r", "30", "-aspect", "9:16", "-c:a", "aac", "-b:a", "192k", main_mp4])
     
     try:
         log.info("Generating main cinematic clip...")
@@ -111,7 +111,7 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
             # Crop to 9:16 to fill screen properly, reset SAR/DAR, draw text center screen
             vf = f"scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1:1,setdar=9:16,drawtext=text='{escaped_text}':fontcolor=white:fontsize=80:x=(w-text_w)/2:y=(h-text_h)/2:borderw=5:bordercolor=red"
             c.extend(["-filter_complex", f"[0:v]{vf}[v]", "-map", "[v]", "-map", "1:a"])
-            c.extend(["-c:v", "libx264", "-preset", "fast", "-r", "30", "-c:a", "aac", "-b:a", "192k", out_file])
+            c.extend(["-c:v", "libx264", "-preset", "fast", "-r", "30", "-aspect", "9:16", "-c:a", "aac", "-b:a", "192k", out_file])
             subprocess.run(c, check=True, capture_output=True)
 
         intro_mp4 = str(work_dir / "intro.mp4")
@@ -128,8 +128,10 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
             
         # Split main.mp4 exactly in half
         half = sped_dur / 2
-        subprocess.run(["ffmpeg", "-y", "-i", main_mp4, "-t", str(half), "-c", "copy", part1_mp4], check=True, capture_output=True)
-        subprocess.run(["ffmpeg", "-y", "-i", main_mp4, "-ss", str(half), "-c", "copy", part2_mp4], check=True, capture_output=True)
+        c_part1 = ["ffmpeg", "-y", "-i", main_mp4, "-t", str(half), "-c", "copy", "-aspect", "9:16", part1_mp4]
+        subprocess.run(c_part1, check=True, capture_output=True)
+        c_part2 = ["ffmpeg", "-y", "-i", main_mp4, "-ss", str(half), "-c", "copy", "-aspect", "9:16", part2_mp4]
+        subprocess.run(c_part2, check=True, capture_output=True)
         
         # Concat using filter_complex for YouTube compliance (avoids timebase corruption)
         files = ["intro.mp4", "part1.mp4"]
@@ -147,7 +149,7 @@ def assemble_transformative_short(podcast_clip: str, gameplay_video: str, bgm_au
         filter_str += f"concat=n={len(files)}:v=1:a=1[outv_raw][outa];[outv_raw]setsar=1:1,setdar=9:16[outv]"
         
         c.extend(["-filter_complex", filter_str, "-map", "[outv]", "-map", "[outa]"])
-        c.extend(["-c:v", "libx264", "-preset", "fast", "-r", "30", "-c:a", "aac", "-b:a", "192k", output_path])
+        c.extend(["-c:v", "libx264", "-preset", "fast", "-r", "30", "-aspect", "9:16", "-c:a", "aac", "-b:a", "192k", output_path])
         
         subprocess.run(c, check=True, capture_output=True)
         return True
